@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Profiles\Schemas;
 
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 
@@ -11,6 +13,19 @@ class ProfileForm
     {
         return $schema
             ->components([
+                Select::make('user_id')
+                    ->label('Cuenta de Usuario')
+                    ->placeholder('Seleccione una cuenta para vincular')
+                    ->helperText('Asocia este perfil de forma unívoca a una cuenta de usuario en el sistema si aplica.')
+                    ->relationship('user', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->nullable()
+                    ->unique(ignoreRecord: true)
+                    ->validationMessages([
+                        'unique' => 'La cuenta de usuario seleccionada ya tiene un perfil vinculado.',
+                    ]),
+
                 TextInput::make('dni')
                     ->label('DNI')
                     ->placeholder('Ej: 71234567')
@@ -71,6 +86,19 @@ class ProfileForm
                     ->maxLength(255)
                     ->validationMessages([
                         'max' => 'La dirección no puede superar los 255 caracteres.',
+                    ]),
+
+                FileUpload::make('photo')
+                    ->label('Fotografía de Perfil')
+                    ->helperText('Formatos permitidos: JPG o PNG. Tamaño máximo permitido: 2 MB.')
+                    ->image()
+                    ->acceptedFileTypes(['image/jpeg', 'image/png'])
+                    ->maxSize(2048)
+                    ->directory('profiles/photos')
+                    ->visibility('public')
+                    ->validationMessages([
+                        'max'   => 'La fotografía no debe superar los 2 MB (2048 KB).',
+                        'mimes' => 'La fotografía debe ser un archivo de formato JPG o PNG.',
                     ]),
             ]);
     }
