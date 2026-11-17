@@ -21,5 +21,3 @@ class CustomLogin extends BaseLogin
         ];
     }
 }
-// antes correr en terminal ./vendor/bin/sail artisan migrate --seed
-// contraseña test@example.com al iniciar sesión es password
