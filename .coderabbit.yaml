@@ -2,6 +2,21 @@ language: "es"
 
 reviews:
   review_status: false
+  path_filters:
+    # Herramientas de agentes y archivos generados por Laravel Boost.
+    - "!.agents/**"
+    - "!.claude/**"
+    - "!.codex/**"
+    - "!.junie/**"
+    - "!.github/skills/**"
+    - "!**/AGENTS.md"
+    - "!**/CLAUDE.md"
+    - "!**/.mcp.json"
+    - "!boost.json"
+    # Metadatos generados para el IDE.
+    - "!_ide_helper.php"
+    - "!_ide_helper_models.php"
+    - "!.phpstorm.meta.php"
   auto_review:
     enabled: true
     base_branches:
