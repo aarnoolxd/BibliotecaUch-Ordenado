@@ -14,11 +14,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Llama al seeder de roles que son los del sistema
         $this->call(RoleSeeder::class);
 
-        if (app()->environment('local', 'testing', 'staging')) {
+        // Verifica si el entorno es local o testing y realiza el seeder correspondiente
+        if (app()->environment('local', 'testing')) {
             $this->call(DevUsersSeeder::class);
         }
     }
 }
-
