@@ -3,10 +3,20 @@
 namespace App\Filament\Pages\Auth;
 
 use Filament\Auth\Pages\Login as BaseLogin;
+use Filament\Support\Enums\Width;
+
 use Override;
 
 class CustomLogin extends BaseLogin
 {
+
+    public function getMaxWidth(): Width
+    {
+        return Width::Small;
+
+    }
+
+
     #[Override]
     public function getHeading(): string
     {
