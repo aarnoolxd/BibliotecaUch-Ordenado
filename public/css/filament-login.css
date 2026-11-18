@@ -15,3 +15,50 @@
 .dark .login-page .fi-simple-main {
     background: rgb(17 24 39 / 85%);
 }
+
+.login-page .login-google {
+    --login-google-divider-color: #4b5563;
+    --login-google-divider-border: rgb(107 114 128 / 35%);
+
+    margin-block-start: 1.5rem;
+}
+
+.login-page .login-google-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-block-end: 1rem;
+    color: var(--login-google-divider-color);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+}
+
+.login-page .login-google-divider::before,
+.login-page .login-google-divider::after {
+    content: '';
+    flex: 1;
+    border-block-start: 1px solid var(--login-google-divider-border);
+}
+
+.login-page .login-google .fi-btn {
+    width: 100%;
+    min-height: 2.75rem;
+}
+
+.login-page .login-google .fi-btn > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.login-page .login-google .fi-btn > span > svg {
+    display: block;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+}
+
+.dark .login-page .login-google {
+    --login-google-divider-color: #d1d5db;
+    --login-google-divider-border: rgb(209 213 219 / 30%);
+}

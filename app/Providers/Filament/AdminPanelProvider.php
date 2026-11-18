@@ -10,7 +10,9 @@ use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Assets\Css;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets;
+use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -36,8 +38,8 @@ class AdminPanelProvider extends PanelProvider
                 Css::make('filament-login', asset('/css/filament-login.css')),
             ])
             ->brandName('UCH')
-            ->brandLogo(fn () => Auth::check() ? asset('images/banner.svg') : asset('images/login-logo.svg'))
-            ->brandLogoHeight(fn () => Auth::check() ? '1.5rem' : '5rem')
+            ->brandLogo(fn() => Auth::check() ? asset('images/banner.svg') : asset('images/login-logo.svg'))
+            ->brandLogoHeight(fn() => Auth::check() ? '1.5rem' : '5rem')
             ->colors([
                 'primary' => '#0A2D5F',
                 'success' => '#0A2D5F',
@@ -50,6 +52,10 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Pages\Dashboard::class,
             ])
+            ->renderHook(
+                PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
+                fn(): View => view('filament.auth.google-button')
+            )
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 Widgets\AccountWidget::class,
