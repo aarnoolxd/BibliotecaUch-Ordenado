@@ -5,3 +5,13 @@
     background-repeat: no-repeat;
     min-height: 100vh;
 }
+
+.login-page .fi-simple-main {
+    background: rgb(235 237 245 / 85%);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+}
+
+.dark .login-page .fi-simple-main {
+    background: rgb(17 24 39 / 85%);
+}
