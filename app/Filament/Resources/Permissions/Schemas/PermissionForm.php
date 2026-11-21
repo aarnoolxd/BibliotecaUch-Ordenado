@@ -4,7 +4,9 @@ namespace App\Filament\Resources\Permissions\Schemas;
 
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Illuminate\Validation\Rules\Unique;
 
 class PermissionForm
 {
@@ -17,13 +19,18 @@ class PermissionForm
                     ->helperText('Ingrese el identificador técnico del permiso.')
                     ->placeholder('Ejemplo: gestionar maquinas')
                     ->required()
-                    ->unique(ignoreRecord: true)
+                    ->unique(
+                        ignoreRecord: true,
+                        modifyRuleUsing: function (Unique $rule, Get $get) {
+                            return $rule->where('guard_name', $get('guard_name'));
+                        }
+                    )
                     ->validationMessages([
                         'unique' => 'Este nombre de permiso ya se encuentra registrado en el sistema.',
                     ])
                     ->live(onBlur: true)
                     ->maxLength(255),
-                    
+
                 TextInput::make('guard_name')
                     ->label('Grupo de Autenticación')
                     ->helperText('Indique el grupo de autenticación asociado.')
