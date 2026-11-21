@@ -13,9 +13,12 @@ La base del proyecto incluye:
 - Usuarios de demostración limitados a los entornos `local` y `testing`.
 - Laravel Boost y configuración de CodeRabbit como herramientas de desarrollo.
 
-La maduración del login y los módulos funcionales continuarán en siguientes entregas. Los tests unitarios y de
-integración se incorporarán cuando el login cumpla los requisitos acordados; los archivos de ejemplo actuales no
-contienen casos de prueba.
+Las pruebas de integración en [tests/Feature/Auth/](tests/Feature/Auth/) cubren el inicio y el cierre de sesión,
+el rechazo de credenciales inválidas y el bloqueo temporal tras varios intentos fallidos. También verifican que cada
+uno de los cuatro roles permitidos puede entrar al panel y que el usuario pierde el acceso al retirarle su último rol
+autorizado.
+
+El desarrollo del login y de los módulos funcionales continuará en siguientes entregas.
 
 ## Tecnologías
 
@@ -256,9 +259,10 @@ respectivamente. Para cerrar el entorno habitual, usa `vendor/bin/sail stop`.
 
 ## Herramientas de desarrollo
 
-- **Laravel Boost:** ya está incluido en las dependencias de desarrollo. `boost.json`, `.ai/mcp/.mcp.json`, `.agents/` y
-  las carpetas de skills contienen su configuración. El servidor MCP usa `vendor/bin/sail artisan boost:mcp`, por lo que
-  Sail debe estar iniciado. No es necesario reinstalar Boost para levantar el proyecto..
+- **Laravel Boost** está incluido en las dependencias de desarrollo. Su configuración se encuentra en `boost.json`,
+  `.agents/` y las carpetas de skills. El servidor MCP `laravel-boost` se configura en
+  [.ai/mcp/mcp.json](.ai/mcp/mcp.json) y se ejecuta con `vendor/bin/sail artisan boost:mcp`, por lo que Sail debe
+  estar iniciado.
 - **Agentes de código:** consulta [AGENTS.md](AGENTS.md) antes de modificar el proyecto con un asistente.
 - **IDE Helper:** proporciona metadatos para el editor; los archivos `_ide_helper*` no forman parte de la lógica de
   negocio.
@@ -278,7 +282,7 @@ respectivamente. Para cerrar el entorno habitual, usa `vendor/bin/sail stop`.
 | `docker/pgsql/`           | Inicialización auxiliar de PostgreSQL                      |
 | `resources/`              | Recursos frontend                                          |
 | `routes/`                 | Rutas web y comandos de consola                            |
-| `tests/`                  | Base preparada para la futura incorporación de tests       |
+| `tests/Feature/Auth/`     | Pruebas de autenticación y acceso al panel según el rol    |
 
 ## Problemas frecuentes
 
