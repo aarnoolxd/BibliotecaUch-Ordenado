@@ -18,7 +18,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, HasRoles, Notifiable;
 
     /**
      * Get the attributes that should be cast.
@@ -39,7 +39,7 @@ class User extends Authenticatable implements FilamentUser
             'admin',
             'super-admin',
             'coordinador',
-            'ayudante'
+            'ayudante',
         ]);
     }
 }

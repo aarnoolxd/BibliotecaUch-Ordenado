@@ -38,8 +38,8 @@ class AdminPanelProvider extends PanelProvider
                 Css::make('filament-login', asset('/css/filament-login.css')),
             ])
             ->brandName('UCH')
-            ->brandLogo(fn() => Auth::check() ? asset('images/banner.svg') : asset('images/login-logo.svg'))
-            ->brandLogoHeight(fn() => Auth::check() ? '1.5rem' : '5rem')
+            ->brandLogo(fn () => Auth::check() ? asset('images/banner.svg') : asset('images/login-logo.svg'))
+            ->brandLogoHeight(fn () => Auth::check() ? '1.5rem' : '5rem')
             ->colors([
                 'primary' => '#0A2D5F',
                 'success' => '#0A2D5F',
@@ -54,7 +54,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->renderHook(
                 PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
-                fn(): View => view('filament.auth.google-button')
+                fn (): View => view('filament.auth.google-button')
             )
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([

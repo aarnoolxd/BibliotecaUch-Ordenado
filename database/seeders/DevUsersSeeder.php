@@ -14,7 +14,7 @@ class DevUsersSeeder extends Seeder
     public function run(): void
     {
         // Verifica si el entorno es local o testing si no es asi lanza una excepcion
-        if (!app()->environment('local', 'testing')) {
+        if (! app()->environment('local', 'testing')) {
             throw new RuntimeException(
                 'DevUsersSeeder solo puede ejecutarse en local o testing.'
             );

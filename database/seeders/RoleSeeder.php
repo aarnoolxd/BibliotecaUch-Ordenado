@@ -7,7 +7,6 @@ use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\PermissionRegistrar;
 
-
 class RoleSeeder extends Seeder
 {
     use WithoutModelEvents;
@@ -23,7 +22,7 @@ class RoleSeeder extends Seeder
             'admin',
             'super-admin',
             'coordinador',
-            'ayudante'
+            'ayudante',
         ];
 
         foreach ($roles as $role) {
@@ -31,7 +30,6 @@ class RoleSeeder extends Seeder
                 'name' => $role,
                 'guard_name' => 'web']);
         }
-
 
     }
 }
