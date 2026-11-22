@@ -9,7 +9,6 @@ use App\Filament\Resources\Permissions\Schemas\PermissionForm;
 use App\Filament\Resources\Permissions\Tables\PermissionsTable;
 use App\Models\Permission;
 use BackedEnum;
-use unitEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -49,6 +48,7 @@ class PermissionResource extends Resource
     {
         return 'Permiso';
     }
+
     public static function getPluralModelLabel(): string
     {
         return 'Módulo Permisos';
