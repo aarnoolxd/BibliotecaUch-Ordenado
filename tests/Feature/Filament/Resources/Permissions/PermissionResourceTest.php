@@ -2,18 +2,14 @@
 
 namespace Tests\Feature\Filament\Resources\Permissions;
 
-use App\Filament\Resources\Permissions\Pages\CreatePermission;
-use App\Filament\Resources\Permissions\Pages\EditPermission;
-use App\Filament\Resources\Permissions\Pages\ListPermissions;
 use App\Filament\Resources\Permissions\PermissionResource;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
-use Livewire\Livewire;
+use Illuminate\Support\Facades\Gate;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class PermissionResourceTest extends TestCase
@@ -28,13 +24,13 @@ class PermissionResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con ViewAny_Permission puede abrir el listado. La página debe responder
-     * con HTTP 200 y mostrar el nombre de un permiso guardado en la base de datos.
+     * Un super-admin puede abrir el catálogo de permisos en modo solo lectura.
+     * La página debe responder con HTTP 200 y mostrar los permisos guardados.
      */
-    public function test_a_user_with_list_permission_can_read_the_permissions_table(): void
+    public function test_super_admin_can_read_the_permissions_table(): void
     {
-        $permission = Permission::findOrCreate('Publish_Book', 'web');
-        $this->signInWithPermissions('ViewAny_Permission');
+        $permission = Permission::findOrCreate('View_Book', 'web');
+        $this->signInWithRole(Role::SUPER_ADMIN);
 
         $this->get(PermissionResource::getUrl('index'))
             ->assertOk()
@@ -42,125 +38,52 @@ class PermissionResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con acceso al panel intenta abrir directamente la URL del listado.
-     * Sin ViewAny_Permission, la petición debe recibir HTTP 403.
+     * @return array<string, array{roleName: string}>
      */
-    public function test_a_panel_user_without_list_permission_is_forbidden_from_listing_permissions(): void
+    public static function nonSuperAdminPanelRolesProvider(): array
     {
-        $this->signInWithPermissions();
+        return [
+            'admin' => ['roleName' => 'admin'],
+            'coordinador' => ['roleName' => 'coordinador'],
+            'ayudante' => ['roleName' => 'ayudante'],
+        ];
+    }
+
+    /**
+     * Ningún otro rol del panel puede ver el catálogo de permisos, aunque tenga
+     * permisos asignados manualmente. La petición debe recibir HTTP 403.
+     */
+    #[DataProvider('nonSuperAdminPanelRolesProvider')]
+    public function test_non_super_admin_panel_roles_are_forbidden_from_listing_permissions(string $roleName): void
+    {
+        $this->signInWithRole($roleName, 'ViewAny_Permission');
 
         $this->get(PermissionResource::getUrl('index'))->assertForbidden();
     }
 
     /**
-     * Un usuario con Create_Permission envía el formulario de creación. Se comprueba
-     * que el nombre, el guard y la descripción se guardan y que Filament vuelve al listado.
+     * PermissionPolicy debe bloquear cualquier operación de creación, vista individual,
+     * edición o borrado incluso para super-admin porque el módulo es solo lectura.
      */
-    public function test_a_user_with_create_permission_can_create_a_permission(): void
+    public function test_permission_policy_denies_write_operations_even_for_super_admin(): void
     {
-        $this->signInWithPermissions('ViewAny_Permission', 'Create_Permission');
-        $attributes = [
-            'name' => 'Publish_Book',
-            'guard_name' => 'web',
-            'description' => 'Allows publishing a book.',
-        ];
+        $permission = Permission::findOrCreate('View_Book', 'web');
+        $superAdmin = $this->signInWithRole(Role::SUPER_ADMIN);
 
-        Livewire::test(CreatePermission::class)
-            ->fillForm($attributes)
-            ->call('create')
-            ->assertHasNoFormErrors()
-            ->assertRedirect(PermissionResource::getUrl('index'));
-
-        $this->assertDatabaseHas('permissions', $attributes);
+        $this->assertTrue(Gate::forUser($superAdmin)->allows('viewAny', Permission::class));
+        $this->assertTrue(Gate::forUser($superAdmin)->denies('view', $permission));
+        $this->assertTrue(Gate::forUser($superAdmin)->denies('create', Permission::class));
+        $this->assertTrue(Gate::forUser($superAdmin)->denies('update', $permission));
+        $this->assertTrue(Gate::forUser($superAdmin)->denies('delete', $permission));
     }
 
     /**
-     * Un usuario que solo puede listar permisos intenta abrir la URL del formulario
-     * de creación. La petición debe recibir HTTP 403 aunque use la URL directa.
+     * Autentica a un usuario con el rol indicado y, opcionalmente, permisos adicionales
+     * para confirmar que solo el rol super-admin habilita el acceso.
      */
-    public function test_a_user_without_create_permission_is_forbidden_from_opening_the_create_form(): void
+    private function signInWithRole(string $roleName, string ...$permissionNames): User
     {
-        $this->signInWithPermissions('ViewAny_Permission');
-
-        $this->get(PermissionResource::getUrl('create'))->assertForbidden();
-    }
-
-    /**
-     * Un usuario con Update_Permission cambia el nombre y la descripción de un permiso.
-     * Filament debe notificar el guardado y los cambios deben quedar en el registro original.
-     */
-    public function test_a_user_with_update_permission_can_edit_an_existing_permission(): void
-    {
-        $permission = Permission::findOrCreate('Publish_Book', 'web');
-        $this->signInWithPermissions('ViewAny_Permission', 'Update_Permission');
-        $attributes = [
-            'name' => 'Publish_Catalog',
-            'guard_name' => 'web',
-            'description' => 'Allows publishing the catalog.',
-        ];
-
-        Livewire::test(EditPermission::class, ['record' => $permission->getRouteKey()])
-            ->fillForm($attributes)
-            ->call('save')
-            ->assertHasNoFormErrors()
-            ->assertNotified();
-
-        $this->assertDatabaseHas('permissions', ['id' => $permission->getKey(), ...$attributes]);
-    }
-
-    /**
-     * Un usuario que solo puede listar permisos intenta editar un registro existente
-     * mediante su URL directa. La petición debe recibir HTTP 403.
-     */
-    public function test_a_user_without_update_permission_is_forbidden_from_opening_the_edit_form(): void
-    {
-        $permission = Permission::findOrCreate('Publish_Book', 'web');
-        $this->signInWithPermissions('ViewAny_Permission');
-
-        $this->get(PermissionResource::getUrl('edit', ['record' => $permission]))->assertForbidden();
-    }
-
-    /**
-     * Un usuario con Delete_Permission elimina un permiso desde su fila en la tabla.
-     * Filament debe emitir una notificación y retirar el registro de la base de datos.
-     */
-    public function test_a_user_with_delete_permission_can_delete_a_permission_from_the_table(): void
-    {
-        $permission = Permission::findOrCreate('Publish_Book', 'web');
-        $this->signInWithPermissions('ViewAny_Permission', 'Delete_Permission');
-
-        Livewire::test(ListPermissions::class)
-            ->callAction(TestAction::make(DeleteAction::class)->table($permission))
-            ->assertNotified();
-
-        $this->assertModelMissing($permission);
-    }
-
-    /**
-     * Un usuario que solo puede listar permisos intenta ejecutar el borrado de una fila
-     * mediante Livewire. La acción debe estar oculta y el registro debe conservarse.
-     */
-    public function test_a_user_without_delete_permission_cannot_delete_a_permission_from_the_table(): void
-    {
-        $permission = Permission::findOrCreate('Publish_Book', 'web');
-        $this->signInWithPermissions('ViewAny_Permission');
-        $action = TestAction::make(DeleteAction::class)->table($permission);
-
-        Livewire::test(ListPermissions::class)
-            ->mountAction($action)
-            ->call('callMountedAction')
-            ->assertActionHidden($action);
-
-        $this->assertModelExists($permission);
-    }
-
-    /**
-     * Autentica a un ayudante, un rol que ya puede entrar al panel. Cada prueba decide
-     * qué permisos adicionales recibe ese rol para operar sobre el recurso.
-     */
-    private function signInWithPermissions(string ...$permissionNames): void
-    {
-        $role = Role::findOrCreate('ayudante', 'web');
+        $role = Role::findOrCreate($roleName, 'web');
 
         foreach ($permissionNames as $permissionName) {
             $role->givePermissionTo(Permission::findOrCreate($permissionName, 'web'));
@@ -170,5 +93,7 @@ class PermissionResourceTest extends TestCase
         $user->assignRole($role);
 
         $this->actingAs($user, 'web');
+
+        return $user;
     }
 }
