@@ -4,7 +4,7 @@ LABEL maintainer="Taylor Otwell"
 
 ARG WWWGROUP
 ARG NODE_VERSION=24
-ARG MYSQL_CLIENT="mysql-client"
+ARG POSTGRES_VERSION=18
 ARG PHP_EXTENSIONS=""
 
 WORKDIR /var/www/html
@@ -37,7 +37,7 @@ RUN apt-get update && apt-get upgrade -y \
         php8.3-gd \
         php8.3-curl \
         php8.3-imap \
-        php8.3-mysql \
+        php8.3-pgsql \
         php8.3-mbstring \
         php8.3-xml \
         php8.3-zip \
@@ -62,8 +62,10 @@ RUN apt-get update && apt-get upgrade -y \
     && corepack enable \
     && corepack prepare yarn@stable --activate \
     && npx -y playwright install-deps \
+    && curl -fsSLo /etc/apt/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "deb [signed-by=/etc/apt/keyrings/pgdg.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
     && apt-get update \
-    && apt-get install -y $MYSQL_CLIENT \
+    && apt-get install -y postgresql-client-$POSTGRES_VERSION \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
