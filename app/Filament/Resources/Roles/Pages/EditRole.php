@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Roles\Pages;
 
 use App\Filament\Resources\Roles\RoleResource;
+use App\Models\Role;
 use BezhanSalleh\FilamentShield\Support\Utils;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Arr;
@@ -22,17 +23,26 @@ class EditRole extends EditRecord
             ->flatten()
             ->unique();
 
-        return Arr::only($data, ['name', 'guard_name']);
+        if (in_array($this->record->name, Role::PANEL_ROLES, true)) {
+            return [];
+        }
+
+        return Arr::only($data, ['name']);
     }
 
     protected function afterSave(): void
     {
+        $this->record = $this->record->newQuery()
+            ->lockForUpdate()
+            ->findOrFail($this->record->getKey());
+        $this->record->unsetRelation('permissions');
+
         $permissionModels = collect();
 
         $this->permissions->each(function (string $permission) use ($permissionModels): void {
             $permissionModels->push(Utils::getPermissionModel()::firstOrCreate([
                 'name' => $permission,
-                'guard_name' => $this->data['guard_name'],
+                'guard_name' => $this->record->guard_name,
             ]));
         });
 
