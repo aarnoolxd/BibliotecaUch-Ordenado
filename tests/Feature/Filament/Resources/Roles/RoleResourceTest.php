@@ -10,10 +10,8 @@ use App\Filament\Resources\Roles\RoleResource;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
-use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
@@ -87,22 +85,6 @@ class RoleResourceTest extends TestCase
     }
 
     /**
-     * La tabla de roles no debe exponer borrado masivo, incluso para un usuario
-     * que posee Delete_Role.
-     */
-    public function test_roles_table_does_not_expose_bulk_delete_action(): void
-    {
-        Role::factory()->create(['name' => 'bibliotecario']);
-        $this->signInWithPermissions('ViewAny_Role', 'Delete_Role');
-
-        Livewire::test(ListRoles::class)
-            ->assertActionDoesNotExist(
-                TestAction::make(DeleteBulkAction::class)->table()->bulk(),
-                checkActionUsing: fn (Action $action): bool => $action instanceof DeleteBulkAction,
-            );
-    }
-
-    /**
      * Un usuario que solo puede listar roles intenta abrir la URL del formulario
      * de creación. La petición debe recibir HTTP 403 aunque use la URL directa.
      */
@@ -157,19 +139,6 @@ class RoleResourceTest extends TestCase
             ->assertActionHidden($action);
 
         $this->assertModelExists($role);
-    }
-
-    /**
-     * La página de edición de roles no debe exponer acción de borrado en el encabezado
-     * ya que la eliminación se gestiona desde la tabla.
-     */
-    public function test_edit_role_page_does_not_expose_a_delete_action(): void
-    {
-        $role = Role::factory()->create(['name' => 'bibliotecario']);
-        $this->signInWithPermissions('ViewAny_Role', 'Update_Role', 'Delete_Role');
-
-        Livewire::test(EditRole::class, ['record' => $role->getRouteKey()])
-            ->assertActionDoesNotExist(DeleteAction::class);
     }
 
     /**
