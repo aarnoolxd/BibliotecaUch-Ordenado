@@ -15,20 +15,24 @@ Con Sail iniciado (`vendor/bin/sail up -d --wait`):
 
 ## Entorno de ejecución
 
-La configuración de [phpunit.xml](../phpunit.xml) ejecuta las pruebas de forma aislada respecto a tu PostgreSQL local:
+La configuración de [phpunit.xml](../phpunit.xml) aísla las pruebas respecto a tu PostgreSQL local siempre que la configuración de Laravel no esté cacheada (`bootstrap/cache/config.php`):
 
 - Base de datos SQLite en memoria (`:memory:`), reiniciada de forma perezosa con el trait `LazilyRefreshDatabase`.
 - `CACHE_STORE=array`, `SESSION_DRIVER=array`, `QUEUE_CONNECTION=sync` y `MAIL_MAILER=array`.
-- Los cambios en las pruebas nunca afectan los datos persistidos en el volumen `sail-pgsql`.
+- **Importante:** si ejecutaste `config:cache` en tu entorno local, limpia antes la caché de configuración para que PHPUnit no use la conexión PostgreSQL cacheada:
+
+```bash
+vendor/bin/sail artisan config:clear
+```
 
 ## Estructura de carpetas
 
-| Ruta                                        | Qué cubre                                                                             |
-|---------------------------------------------|---------------------------------------------------------------------------------------|
-| `tests/Feature/Auth/`                       | Inicio/cierre de sesión, throttling de intentos fallidos y acceso al panel según rol  |
-| `tests/Feature/Filament/Resources/Permissions/` | CRUD y autorización de `PermissionResource`                                       |
-| `tests/Feature/Filament/Resources/Roles/`   | CRUD, autorización, matriz de permisos de Shield y validaciones de `RoleResource`     |
-| `tests/Unit/`                               | Pruebas unitarias de lógica pura que no requiere arrancar el framework                |
+| Ruta                                            | Qué cubre                                                                             |
+|-------------------------------------------------|---------------------------------------------------------------------------------------|
+| `tests/Feature/Auth/`                           | Inicio/cierre de sesión, throttling de intentos fallidos y acceso al panel según rol  |
+| `tests/Feature/Filament/Resources/Permissions/` | Catálogo de permisos en modo solo lectura restringido a `super-admin`                 |
+| `tests/Feature/Filament/Resources/Roles/`       | Gestión de roles por `super-admin`, protección de roles base, matriz y validaciones   |
+| `tests/Unit/`                                   | Pruebas unitarias de lógica pura que no requiere arrancar el framework                |
 
 ## Convenciones del equipo
 
