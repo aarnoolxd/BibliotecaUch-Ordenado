@@ -1,0 +1,45 @@
+<?php
+
+namespace App\Filament\Resources\Roles\Pages;
+
+use App\Filament\Resources\Roles\RoleResource;
+use BezhanSalleh\FilamentShield\Support\Utils;
+use Filament\Resources\Pages\EditRecord;
+use Illuminate\Support\Collection;
+
+class EditRole extends EditRecord
+{
+    public Collection $permissions;
+
+    protected static string $resource = RoleResource::class;
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $this->permissions = collect($data)
+            ->filter(fn (mixed $permission, string $key): bool => ! in_array($key, ['name', 'guard_name', 'select_all'], true))
+            ->values()
+            ->flatten()
+            ->unique();
+
+        return [];
+    }
+
+    protected function afterSave(): void
+    {
+        $this->record = $this->record->newQuery()
+            ->lockForUpdate()
+            ->findOrFail($this->record->getKey());
+        $this->record->unsetRelation('permissions');
+
+        $permissionModels = collect();
+
+        $this->permissions->each(function (string $permission) use ($permissionModels): void {
+            $permissionModels->push(Utils::getPermissionModel()::firstOrCreate([
+                'name' => $permission,
+                'guard_name' => $this->record->guard_name,
+            ]));
+        });
+
+        $this->record->syncPermissions($permissionModels);
+    }
+}

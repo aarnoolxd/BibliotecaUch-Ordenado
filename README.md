@@ -10,15 +10,13 @@ La base del proyecto incluye:
 - Laravel con un panel administrativo de Filament en `/admin`.
 - Spatie Laravel Permission con modelos propios `User`, `Role` y `Permission`.
 - Cuatro roles iniciales y acceso al panel condicionado a su asignación.
+- Módulos de **Gestión de Seguridad** en Filament para administrar roles (`RoleResource`, con matriz de permisos de Filament Shield) y permisos (`PermissionResource`), protegidos por `RolePolicy` y `PermissionPolicy`.
 - Usuarios de demostración limitados a los entornos `local` y `testing`.
 - Laravel Boost y configuración de CodeRabbit como herramientas de desarrollo.
 
-Las pruebas de integración en [tests/Feature/Auth/](tests/Feature/Auth/) cubren el inicio y el cierre de sesión,
-el rechazo de credenciales inválidas y el bloqueo temporal tras varios intentos fallidos. También verifican que cada
-uno de los cuatro roles permitidos puede entrar al panel y que el usuario pierde el acceso al retirarle su último rol
-autorizado.
+Las pruebas de integración cubren autenticación y acceso al panel en [tests/Feature/Auth/](tests/Feature/Auth/) (inicio y cierre de sesión, rechazo de credenciales inválidas, bloqueo temporal tras varios intentos fallidos y control de acceso por rol) y los módulos de seguridad en [tests/Feature/Filament/Resources/](tests/Feature/Filament/Resources/) (CRUD, autorización por permisos, sincronización de la matriz de Shield y validaciones). Consulta [tests/README.md](tests/README.md) para comandos y convenciones de pruebas.
 
-El desarrollo del login y de los módulos funcionales continuará en siguientes entregas.
+El desarrollo de los módulos funcionales restantes continuará en siguientes entregas.
 
 ## Tecnologías
 
@@ -166,7 +164,7 @@ generados a `super-admin`. Para `admin`, `coordinador` y `ayudante`, asigna los 
 responsabilidades en cada módulo.
 
 Al incorporar recursos nuevos, vuelve a ejecutar el comando con `--option=permissions` para actualizar el catálogo
-y conservar las policies personalizadas, incluida `PermissionPolicy`.
+y conservar las policies personalizadas, incluidas `PermissionPolicy` y `RolePolicy`.
 
 ### Auditoría de roles y permisos (pendiente)
 
@@ -231,6 +229,7 @@ El servidor PHP ya se ejecuta dentro de Sail. No hace falta iniciar otro `artisa
 | Ver estado de las migraciones       | `vendor/bin/sail artisan migrate:status`           |
 | Limpiar configuración en caché      | `vendor/bin/sail artisan config:clear`             |
 | Limpiar caché de permisos           | `vendor/bin/sail artisan permission:cache-reset`   |
+| Ejecutar pruebas                    | `vendor/bin/sail artisan test --compact`           |
 | Formatear PHP modificado            | `vendor/bin/sail bin pint --dirty --format agent`  |
 | Compilar recursos frontend          | `vendor/bin/sail npm run build`                    |
 | Detener servicios conservando datos | `vendor/bin/sail stop`                             |
@@ -280,18 +279,23 @@ respectivamente. Para cerrar el entorno habitual, usa `vendor/bin/sail stop`.
 
 ## Referencia de carpetas
 
-| Ruta                      | Propósito                                                  |
-|---------------------------|------------------------------------------------------------|
-| `app/Models/`             | Modelos de usuarios, roles y permisos                      |
-| `app/Providers/Filament/` | Configuración del panel administrativo                     |
-| `config/permission.php`   | Configuración de Spatie y modelos utilizados               |
-| `database/migrations/`    | Cambios del esquema de base de datos                       |
-| `database/seeders/`       | Roles iniciales y usuarios de desarrollo                   |
-| `docker/8.3/`             | Imagen PHP y configuración del contenedor de la aplicación |
-| `docker/pgsql/`           | Inicialización auxiliar de PostgreSQL                      |
-| `resources/`              | Recursos frontend                                          |
-| `routes/`                 | Rutas web y comandos de consola                            |
-| `tests/Feature/Auth/`     | Pruebas de autenticación y acceso al panel según el rol    |
+| Ruta                                | Propósito                                                           |
+|-------------------------------------|---------------------------------------------------------------------|
+| `app/Filament/Resources/`           | Recursos de Filament (roles y permisos en Gestión de Seguridad)     |
+| `app/Models/`                       | Modelos de usuarios, roles y permisos                               |
+| `app/Policies/`                     | Policies de autorización (`PermissionPolicy`, `RolePolicy`)         |
+| `app/Providers/Filament/`           | Configuración del panel administrativo                              |
+| `config/permission.php`             | Configuración de Spatie y modelos utilizados                        |
+| `database/factories/`               | Factories para pruebas (`UserFactory`, `RoleFactory`)               |
+| `database/migrations/`              | Cambios del esquema de base de datos                                |
+| `database/seeders/`                 | Roles iniciales y usuarios de desarrollo                            |
+| `docker/8.3/`                       | Imagen PHP y configuración del contenedor de la aplicación          |
+| `docker/pgsql/`                     | Inicialización auxiliar de PostgreSQL                               |
+| `resources/`                        | Recursos frontend                                                   |
+| `routes/`                           | Rutas web y comandos de consola                                     |
+| `tests/`                            | Suite de pruebas y guía en [tests/README.md](tests/README.md)       |
+| `tests/Feature/Auth/`               | Pruebas de autenticación y acceso al panel según el rol             |
+| `tests/Feature/Filament/Resources/` | Pruebas de integración de recursos Filament (`Roles`, `Permissions`)|
 
 ## Problemas frecuentes
 
