@@ -30,11 +30,13 @@ class UserPolicy
 
     public function update(AuthUser $authUser, User $user): bool
     {
-        return $authUser->can('Update_User') && $user->roles()->whereNotIn('name', [Role::SUPER_ADMIN])->exists();
+        return $authUser->can('Update_User') && ! $user->hasRole(Role::SUPER_ADMIN);
     }
 
     public function delete(AuthUser $authUser, User $user): bool
     {
-        return $authUser->can('Delete_User') && $authUser->id !== $user->id && $user->roles()->whereNotIn('name', [Role::SUPER_ADMIN])->exists();
+        return $authUser->can('Delete_User')
+            && ! $authUser->is($user)
+            && ! $user->hasRole(Role::SUPER_ADMIN);
     }
 }
