@@ -21,7 +21,6 @@ class UserForm
                     ->minLength(3)
                     ->maxLength(255)
                     ->live()
-                    ->unique(ignoreRecord: true)
                     ->validationMessages([
                         'required' => 'El nombre es obligatorio.',
                         'min' => 'El nombre debe tener al menos 3 caracteres.',
@@ -62,15 +61,20 @@ class UserForm
                         'required' => 'La contraseña es obligatoria.',
                         'min' => 'La contraseña debe tener al menos 8 caracteres.',
                         'max' => 'La contraseña no puede superar los 255 caracteres.',
+                        'password' => 'La contraseña debe incluir al menos una letra mayúscula, una letra minúscula, un número y un carácter especial.',
                     ]),
 
                 Select::make('roles')
                     ->label('Roles de Usuario')
                     ->placeholder('Seleccione los roles')
-                    ->helperText('Seleccione uno o más roles asignados a esta cuenta de usuario.')
+                    ->helperText('Seleccione un rol para asignar a este usuario.')
                     ->relationship('roles', 'name')
                     ->preload()
-                    ->searchable(),
+                    ->searchable()
+                    ->required()
+                    ->validationMessages([
+                        'required' => 'Debe seleccionar al menos un rol.'
+                    ]),
             ]);
     }
 }
