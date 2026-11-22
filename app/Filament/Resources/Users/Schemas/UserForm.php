@@ -73,7 +73,7 @@ class UserForm
                     ->searchable()
                     ->required()
                     ->validationMessages([
-                        'required' => 'Debe seleccionar al menos un rol.'
+                        'required' => 'Debe seleccionar al menos un rol.',
                     ]),
             ]);
     }
