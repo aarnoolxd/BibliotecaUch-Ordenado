@@ -4,8 +4,10 @@ namespace App\Filament\Resources\Roles\Schemas;
 
 use BezhanSalleh\FilamentShield\Traits\HasShieldFormComponents;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
-use Filament\Forms\Components\Placeholder;
+use Illuminate\Validation\Rules\Unique;
 
 class RoleForm
 {
@@ -20,15 +22,20 @@ class RoleForm
                     ->placeholder('Ej: Administrador, Bibliotecario')
                     ->helperText('Campo para identificar el rol dentro del sistema.')
                     ->required()
-                    ->unique(ignoreRecord: true)
-                    ->minLength(8)
+                    ->unique(
+                        ignoreRecord: true,
+                        modifyRuleUsing: function (Unique $rule, Get $get): Unique {
+                            return $rule->where('guard_name', $get('guard_name'));
+                        }
+                    )
+                    ->minLength(3)
                     ->maxLength(64)
                     ->live()
                     ->validationMessages([
                         'required' => 'El nombre del rol es obligatorio.',
-                        'unique'   => 'Este nombre de rol ya está registrado.',
-                        'min'      => 'El nombre debe tener al menos 8 caracteres.',
-                        'max'      => 'El nombre no puede superar los 64 caracteres.',
+                        'unique' => 'Este nombre de rol ya está registrado.',
+                        'min' => 'El nombre debe tener al menos 3 caracteres.',
+                        'max' => 'El nombre no puede superar los 64 caracteres.',
                     ]),
 
                 TextInput::make('guard_name')
@@ -42,14 +49,14 @@ class RoleForm
                     ->live()
                     ->validationMessages([
                         'required' => 'El grupo de seguridad es obligatorio.',
-                        'min'      => 'El guard debe tener al menos 3 caracteres.',
-                        'max'      => 'El guard no puede superar los 32 caracteres.',
+                        'min' => 'El guard debe tener al menos 3 caracteres.',
+                        'max' => 'El guard no puede superar los 32 caracteres.',
                     ]),
 
-                // Criterio 4: Placeholder que identifica para qué sirve el campo
-                Placeholder::make('permissions_matrix_info')
+                // Criterio 4: Texto informativo que identifica para qué sirve la matriz de accesos
+                TextEntry::make('permissions_matrix_info')
                     ->label('Matriz de Accesos')
-                    ->content('Seleccione a continuación los permisos específicos (por módulo y acción) que tendrá este rol.'),
+                    ->state('Seleccione a continuación los permisos específicos (por módulo y acción) que tendrá este rol.'),
 
                 // Criterio 2: El método getShieldFormComponents() agregado al formulario
                 static::getShieldFormComponents(),
