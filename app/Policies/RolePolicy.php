@@ -19,12 +19,12 @@ class RolePolicy
 
     public function view(AuthUser $authUser, Role $role): bool
     {
-        return $authUser->hasRole(Role::SUPER_ADMIN);
+        return false;
     }
 
     public function create(AuthUser $authUser): bool
     {
-        return $authUser->hasRole(Role::SUPER_ADMIN);
+        return false;
     }
 
     public function update(AuthUser $authUser, Role $role): bool
@@ -35,6 +35,6 @@ class RolePolicy
     public function delete(AuthUser $authUser, Role $role): bool
     {
         return $authUser->hasRole(Role::SUPER_ADMIN)
-            && ! in_array($role->name, Role::PANEL_ROLES, true);
+            && !in_array($role->name, Role::PANEL_ROLES, true);
     }
 }
