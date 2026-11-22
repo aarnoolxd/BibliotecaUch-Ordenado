@@ -31,16 +31,6 @@ class UserResource extends Resource
     protected static ?string $modelLabel = 'Cuenta';
     protected static ?string $pluralModelLabel = 'Módulo Cuentas';
 
-    public static function getModelLabel(): string
-    {
-        return 'Cuenta';
-    }
-
-    public static function getPluralModelLabel(): string
-    {
-        return 'Módulo Cuentas';
-    }
-
     public static function form(Schema $schema): Schema
     {
         return UserForm::configure($schema);
