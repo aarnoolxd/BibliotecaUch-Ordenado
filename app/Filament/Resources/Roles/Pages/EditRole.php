@@ -3,10 +3,8 @@
 namespace App\Filament\Resources\Roles\Pages;
 
 use App\Filament\Resources\Roles\RoleResource;
-use App\Models\Role;
 use BezhanSalleh\FilamentShield\Support\Utils;
 use Filament\Resources\Pages\EditRecord;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 
 class EditRole extends EditRecord
@@ -23,11 +21,7 @@ class EditRole extends EditRecord
             ->flatten()
             ->unique();
 
-        if (in_array($this->record->name, Role::PANEL_ROLES, true)) {
-            return [];
-        }
-
-        return Arr::only($data, ['name']);
+        return [];
     }
 
     protected function afterSave(): void
