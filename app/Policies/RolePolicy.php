@@ -14,28 +14,27 @@ class RolePolicy
 
     public function viewAny(AuthUser $authUser): bool
     {
-        return $authUser->can('ViewAny_Role');
+        return $authUser->hasRole(Role::SUPER_ADMIN);
     }
 
     public function view(AuthUser $authUser, Role $role): bool
     {
-        return $authUser->can('View_Role');
+        return $authUser->hasRole(Role::SUPER_ADMIN);
     }
 
     public function create(AuthUser $authUser): bool
     {
-        return $authUser->can('Create_Role');
+        return $authUser->hasRole(Role::SUPER_ADMIN);
     }
 
     public function update(AuthUser $authUser, Role $role): bool
     {
-        return $authUser->can('Update_Role');
+        return $authUser->hasRole(Role::SUPER_ADMIN);
     }
 
     public function delete(AuthUser $authUser, Role $role): bool
     {
-        return $authUser->can('Delete_Role');
+        return $authUser->hasRole(Role::SUPER_ADMIN)
+            && ! in_array($role->name, Role::PANEL_ROLES, true);
     }
-
-
 }
