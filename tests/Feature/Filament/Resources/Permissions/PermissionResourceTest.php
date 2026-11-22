@@ -9,7 +9,9 @@ use App\Filament\Resources\Permissions\PermissionResource;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -155,36 +157,32 @@ class PermissionResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con permisos de edición y borrado elimina un permiso desde el encabezado
-     * del formulario de edición. Filament debe volver al listado tras eliminar el registro.
+     * La tabla de permisos no debe exponer borrado masivo, incluso para un usuario
+     * que posee Delete_Permission.
      */
-    public function test_a_user_with_delete_permission_can_delete_a_permission_from_the_edit_page(): void
+    public function test_permissions_table_does_not_expose_bulk_delete_action(): void
+    {
+        Permission::findOrCreate('Publish_Book', 'web');
+        $this->signInWithPermissions('ViewAny_Permission', 'Delete_Permission');
+
+        Livewire::test(ListPermissions::class)
+            ->assertActionDoesNotExist(
+                TestAction::make(DeleteBulkAction::class)->table()->bulk(),
+                checkActionUsing: fn (Action $action): bool => $action instanceof DeleteBulkAction,
+            );
+    }
+
+    /**
+     * La página de edición de permisos no debe exponer acción de borrado en el encabezado
+     * ya que la eliminación se gestiona desde la tabla.
+     */
+    public function test_edit_permission_page_does_not_expose_a_delete_action(): void
     {
         $permission = Permission::findOrCreate('Publish_Book', 'web');
         $this->signInWithPermissions('ViewAny_Permission', 'Update_Permission', 'Delete_Permission');
 
         Livewire::test(EditPermission::class, ['record' => $permission->getRouteKey()])
-            ->callAction(DeleteAction::class)
-            ->assertRedirect(PermissionResource::getUrl('index'));
-
-        $this->assertModelMissing($permission);
-    }
-
-    /**
-     * Un usuario que puede editar intenta ejecutar el borrado desde el formulario.
-     * Sin Delete_Permission, la acción debe estar oculta y el registro debe conservarse.
-     */
-    public function test_a_user_with_update_permission_but_without_delete_permission_cannot_delete_from_the_edit_page(): void
-    {
-        $permission = Permission::findOrCreate('Publish_Book', 'web');
-        $this->signInWithPermissions('ViewAny_Permission', 'Update_Permission');
-
-        Livewire::test(EditPermission::class, ['record' => $permission->getRouteKey()])
-            ->mountAction(DeleteAction::class)
-            ->call('callMountedAction')
-            ->assertActionHidden(DeleteAction::class);
-
-        $this->assertModelExists($permission);
+            ->assertActionDoesNotExist(DeleteAction::class);
     }
 
     /**
