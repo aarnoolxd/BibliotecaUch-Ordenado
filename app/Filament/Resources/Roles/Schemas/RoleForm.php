@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Roles\Schemas;
 
+use App\Models\Role;
 use BezhanSalleh\FilamentShield\Traits\HasShieldFormComponents;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
@@ -24,13 +25,14 @@ class RoleForm
                     ->required()
                     ->unique(
                         ignoreRecord: true,
-                        modifyRuleUsing: function (Unique $rule, Get $get): Unique {
-                            return $rule->where('guard_name', $get('guard_name'));
+                        modifyRuleUsing: function (Unique $rule, Get $get, ?Role $record): Unique {
+                            return $rule->where('guard_name', $record?->guard_name ?? $get('guard_name'));
                         }
                     )
                     ->minLength(3)
                     ->maxLength(64)
                     ->live()
+                    ->disabled(fn (?Role $record): bool => $record !== null && in_array($record->name, Role::PANEL_ROLES, true))
                     ->validationMessages([
                         'required' => 'El nombre del rol es obligatorio.',
                         'unique' => 'Este nombre de rol ya está registrado.',
@@ -47,6 +49,7 @@ class RoleForm
                     ->minLength(3)
                     ->maxLength(32)
                     ->live()
+                    ->disabledOn('edit')
                     ->validationMessages([
                         'required' => 'El grupo de seguridad es obligatorio.',
                         'min' => 'El guard debe tener al menos 3 caracteres.',
