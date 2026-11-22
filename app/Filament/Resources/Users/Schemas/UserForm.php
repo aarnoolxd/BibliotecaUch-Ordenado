@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
+use App\Models\Role;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rules\Password;
 
 class UserForm
@@ -68,7 +70,14 @@ class UserForm
                     ->label('Roles de Usuario')
                     ->placeholder('Seleccione los roles')
                     ->helperText('Seleccione un rol para asignar a este usuario.')
-                    ->relationship('roles', 'name')
+                    ->relationship(
+                        name: 'roles',
+                        titleAttribute: 'name',
+                        modifyQueryUsing: function (Builder $query): Builder {
+
+                            return $query->where('name', '!=', Role::SUPER_ADMIN);
+                        },
+                    )
                     ->preload()
                     ->searchable()
                     ->required()
