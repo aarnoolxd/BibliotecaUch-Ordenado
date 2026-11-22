@@ -27,6 +27,7 @@ El desarrollo del login y de los módulos funcionales continuará en siguientes 
 | PHP                       | 8.3 en la imagen de Sail                |
 | Laravel                   | 13.x                                    |
 | Filament                  | 5.x                                     |
+| Filament Shield           | 4.3.x                                   |
 | Spatie Laravel Permission | 8.x                                     |
 | PostgreSQL                | 18, imagen `postgres:18-alpine`         |
 | Node.js                   | 24 en la imagen de Sail                 |
@@ -118,6 +119,7 @@ vendor/bin/sail composer install --no-interaction
 vendor/bin/sail composer check-platform-reqs
 vendor/bin/sail artisan key:generate --no-interaction
 vendor/bin/sail artisan migrate --seed --no-interaction
+vendor/bin/sail artisan shield:generate --all --panel=admin --option=permissions --no-interaction
 vendor/bin/sail npm ci
 vendor/bin/sail npm run build
 ```
@@ -156,8 +158,15 @@ los demás entornos, incluso si se utiliza `--force`.
 al acceder a una ruta protegida del panel. No se debe habilitar el acceso general a usuarios sin roles para resolver
 este bloqueo.
 
-Los nombres de los roles no definen una jerarquía automática. En esta base, los cuatro permiten entrar al panel; los
-permisos de las acciones y recursos deben definirse según se implementen los módulos.
+Los cuatro roles permiten entrar al panel. Cada módulo define los permisos necesarios para sus acciones.
+
+Después de las migraciones y los seeders, el comando de Shield de la [primera instalación](#4-construir-e-iniciar-sail)
+crea los permisos que faltan en el catálogo del panel `admin`. Con la configuración actual, Shield otorga los permisos
+generados a `super-admin`. Para `admin`, `coordinador` y `ayudante`, asigna los permisos que correspondan a sus
+responsabilidades en cada módulo.
+
+Al incorporar recursos nuevos, vuelve a ejecutar el comando con `--option=permissions` para actualizar el catálogo
+y conservar las policies personalizadas, incluida `PermissionPolicy`.
 
 ### Auditoría de roles y permisos (pendiente)
 
