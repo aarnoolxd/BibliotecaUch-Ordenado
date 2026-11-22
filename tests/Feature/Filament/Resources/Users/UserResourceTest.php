@@ -83,9 +83,9 @@ class UserResourceTest extends TestCase
                 'name' => 'Carlos Ramos',
                 'email' => 'carlos.ramos@uch.pe',
                 'password' => 'ClaveSegura1!',
-                'roles' => $coordinadorRole->getKey(),
+                'roles' => [$coordinadorRole->getKey()],
             ])
-            ->call('create')
+            ->callAction(TestAction::make('create')->schemaComponent('form-actions', schema: 'content'))
             ->assertHasNoFormErrors()
             ->assertNotified('Cuenta creada exitosamente')
             ->assertRedirect(UserResource::getUrl('index'));
@@ -118,27 +118,29 @@ class UserResourceTest extends TestCase
                 'name' => 'Intento Super',
                 'email' => 'intento.super@uch.pe',
                 'password' => 'ClaveSegura1!',
-                'roles' => $superAdminRole->getKey(),
+                'roles' => [$superAdminRole->getKey()],
             ])
             ->call('create')
-            ->assertHasFormErrors(['roles'])
+            ->assertHasFormErrors(['roles.0'])
             ->assertNotNotified();
 
         $this->assertDatabaseMissing('users', ['email' => 'intento.super@uch.pe']);
     }
 
     /**
-     * Al editar una cuenta dejando la contraseña vacía, se actualizan nombre, correo y rol
-     * conservando intacto el hash de contraseña original (también funciona con cuentas sin rol previo).
+     * Al editar una cuenta dejando la contraseña vacía, se actualizan nombre y correo
+     * conservando tanto el hash de contraseña original como todos los roles asignados.
      */
-    public function test_a_user_with_update_permission_can_edit_a_user_without_changing_password(): void
+    public function test_a_user_with_update_permission_can_edit_a_user_without_changing_password_or_losing_roles(): void
     {
+        $adminRole = Role::findOrCreate('admin', 'web');
         $coordinadorRole = Role::findOrCreate('coordinador', 'web');
         $target = User::factory()->create([
             'name' => 'Ana Torres',
             'email' => 'ana.torres@uch.pe',
             'password' => 'PasswordInicial1!',
         ]);
+        $target->assignRole([$adminRole, $coordinadorRole]);
         $originalPasswordHash = $target->password;
         $this->signInWithPermissions('ViewAny_User', 'Update_User');
 
@@ -147,7 +149,6 @@ class UserResourceTest extends TestCase
                 'name' => 'Ana Torres Quispe',
                 'email' => 'ana.torres@uch.pe',
                 'password' => '',
-                'roles' => $coordinadorRole->getKey(),
             ])
             ->call('save')
             ->assertHasNoFormErrors()
@@ -157,7 +158,10 @@ class UserResourceTest extends TestCase
 
         $this->assertSame('Ana Torres Quispe', $target->name);
         $this->assertSame($originalPasswordHash, $target->password);
-        $this->assertSame(['coordinador'], $target->getRoleNames()->all());
+        $this->assertSame(
+            ['admin', 'coordinador'],
+            $target->roles()->orderBy('name')->pluck('name')->all(),
+        );
     }
 
     /**
@@ -175,7 +179,7 @@ class UserResourceTest extends TestCase
                 'name' => $target->name,
                 'email' => $target->email,
                 'password' => 'NuevaClave2@',
-                'roles' => $coordinadorRole->getKey(),
+                'roles' => [$coordinadorRole->getKey()],
             ])
             ->call('save')
             ->assertHasNoFormErrors()
@@ -273,7 +277,7 @@ class UserResourceTest extends TestCase
                 'name' => '',
                 'email' => '',
                 'password' => '',
-                'roles' => null,
+                'roles' => [],
             ])
             ->call('create')
             ->assertHasFormErrors([
@@ -289,7 +293,7 @@ class UserResourceTest extends TestCase
                 'name' => 'Usuario Prueba',
                 'email' => 'usuario.prueba@uch.pe',
                 'password' => 'solominusculas',
-                'roles' => $coordinadorRole->getKey(),
+                'roles' => [$coordinadorRole->getKey()],
             ])
             ->call('create')
             ->assertHasFormErrors(['password'])
@@ -312,7 +316,7 @@ class UserResourceTest extends TestCase
                 'name' => 'Otra Persona',
                 'email' => 'duplicado@uch.pe',
                 'password' => 'ClaveSegura1!',
-                'roles' => $coordinadorRole->getKey(),
+                'roles' => [$coordinadorRole->getKey()],
             ])
             ->call('create')
             ->assertHasFormErrors([
