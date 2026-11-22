@@ -68,7 +68,7 @@ class UserForm
                 Select::make('roles')
                     ->label('Roles de Usuario')
                     ->placeholder('Seleccione los roles')
-                    ->helperText('Seleccione un rol para asignar a este usuario.')
+                    ->helperText('Seleccione uno o más roles para asignar a este usuario.')
                     ->relationship(
                         name: 'roles',
                         titleAttribute: 'name',
@@ -76,6 +76,7 @@ class UserForm
                             return $query->where('name', '!=', Role::SUPER_ADMIN);
                         },
                     )
+                    ->multiple()
                     ->preload()
                     ->searchable()
                     ->required()
