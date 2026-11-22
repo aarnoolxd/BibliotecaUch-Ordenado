@@ -27,7 +27,6 @@ class UserForm
                         'required' => 'El nombre es obligatorio.',
                         'min' => 'El nombre debe tener al menos 3 caracteres.',
                         'max' => 'El nombre no puede superar los 255 caracteres.',
-                        'unique' => 'Este nombre ya se encuentra registrado.',
                     ]),
 
                 TextInput::make('email')
@@ -54,8 +53,8 @@ class UserForm
                     ->helperText('Mínimo 8 caracteres, incluyendo mayúsculas, minúsculas, números y caracteres especiales.')
                     ->password()
                     ->revealable()
-                    ->required(fn(string $operation): bool => $operation === 'create')
-                    ->dehydrated(fn(?string $state): bool => filled($state))
+                    ->required(fn (string $operation): bool => $operation === 'create')
+                    ->dehydrated(fn (?string $state): bool => filled($state))
                     ->minLength(8)
                     ->maxLength(255)
                     ->rule(Password::min(8)->letters()->mixedCase()->numbers()->symbols())
@@ -74,7 +73,6 @@ class UserForm
                         name: 'roles',
                         titleAttribute: 'name',
                         modifyQueryUsing: function (Builder $query): Builder {
-
                             return $query->where('name', '!=', Role::SUPER_ADMIN);
                         },
                     )
