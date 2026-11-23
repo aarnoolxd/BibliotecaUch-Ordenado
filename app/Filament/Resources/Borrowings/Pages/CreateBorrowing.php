@@ -3,12 +3,14 @@
 namespace App\Filament\Resources\Borrowings\Pages;
 
 use App\Filament\Resources\Borrowings\BorrowingResource;
+use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Models\Profile;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
@@ -29,14 +31,18 @@ class CreateBorrowing extends CreateRecord
                 ->send();
 
             throw ValidationException::withMessages([
-                'student_dni' => 'El DNI ingresado no existe en el sistema.',
+                'data.student_dni' => 'El DNI ingresado no existe en el sistema.',
             ]);
         }
 
         $data['profile_id'] = $profile->id;
 
-        // Subtarea [UB-142] / Criterio 3: Verificar que el recurso seleccionado esté en estado "Disponible"
-        $equipment = Equipment::find($data['equipment_id'] ?? null);
+        // Subtarea [UB-142] / Criterio 3: Bloquear la fila del equipo dentro de la transacción
+        // y verificar su disponibilidad antes de registrar el préstamo.
+        $equipment = Equipment::query()
+            ->lockForUpdate()
+            ->find($data['equipment_id'] ?? null);
+
         if (! $equipment) {
             Notification::make()
                 ->danger()
@@ -45,7 +51,7 @@ class CreateBorrowing extends CreateRecord
                 ->send();
 
             throw ValidationException::withMessages([
-                'equipment_id' => 'El recurso seleccionado no existe.',
+                'data.equipment_id' => 'El recurso seleccionado no existe.',
             ]);
         }
 
@@ -58,22 +64,14 @@ class CreateBorrowing extends CreateRecord
                 ->send();
 
             throw ValidationException::withMessages([
-                'equipment_id' => "El recurso '{$equipment->brand} {$equipment->model}' no está Disponible (Estado: {$equipment->status}).",
+                'data.equipment_id' => "El recurso '{$equipment->brand} {$equipment->model}' no está Disponible (Estado: {$equipment->status}).",
             ]);
         }
 
-        // Subtarea [UB-141] / Criterio 4: Fecha de préstamo y cálculo de fecha límite de devolución
+        // Subtarea [UB-141] / Criterio 4: Aplicar siempre la regla de vencimiento según tipo de equipo
         $borrowingDate = ! empty($data['borrowing_date']) ? Carbon::parse($data['borrowing_date']) : now();
         $data['borrowing_date'] = $borrowingDate->toDateTimeString();
-
-        if (empty($data['due_date'])) {
-            $data['due_date'] = match ($equipment->type) {
-                'Laptop'      => $borrowingDate->copy()->addDays(2)->toDateTimeString(),
-                'Computadora' => $borrowingDate->copy()->addHours(6)->toDateTimeString(),
-                'Periférico'  => $borrowingDate->copy()->addDay()->toDateTimeString(),
-                default       => $borrowingDate->copy()->addDay()->toDateTimeString(),
-            };
-        }
+        $data['due_date'] = Borrowing::calculateDueDate($equipment->type, $borrowingDate)->toDateTimeString();
 
         // Subtarea [UB-144] / Criterio 5: Asignar automáticamente el estado "En curso" al préstamo
         $data['status'] = 'En curso';
@@ -82,16 +80,27 @@ class CreateBorrowing extends CreateRecord
         return $data;
     }
 
-    protected function afterCreate(): void
+    protected function handleRecordCreation(array $data): Model
     {
-        // Actualizar el estado operativo del equipo prestado a 'Prestado'
-        /** @var \App\Models\Borrowing $record */
-        $record = $this->record;
-        if ($record && $record->equipment) {
-            $record->equipment->update([
-                'status' => 'Prestado',
+        $claimed = Equipment::query()
+            ->whereKey($data['equipment_id'])
+            ->where('status', 'Disponible')
+            ->update(['status' => 'Prestado']);
+
+        if ($claimed !== 1) {
+            Notification::make()
+                ->danger()
+                ->title('Recurso no disponible')
+                ->body('El recurso seleccionado dejó de estar disponible antes de confirmar el préstamo.')
+                ->persistent()
+                ->send();
+
+            throw ValidationException::withMessages([
+                'data.equipment_id' => 'El recurso seleccionado ya no está Disponible.',
             ]);
         }
+
+        return parent::handleRecordCreation($data);
     }
 
     protected function getCreateFormAction(): Action

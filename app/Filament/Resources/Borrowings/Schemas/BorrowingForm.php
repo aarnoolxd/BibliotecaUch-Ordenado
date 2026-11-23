@@ -2,9 +2,11 @@
 
 namespace App\Filament\Resources\Borrowings\Schemas;
 
+use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Models\Profile;
 use Carbon\Carbon;
+use Closure;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -26,10 +28,11 @@ class BorrowingForm
                     ->length(8)
                     ->regex('/^[0-9]{8}$/')
                     ->live(onBlur: true)
-                    ->afterStateUpdated(function ($state, callable $set) {
+                    ->afterStateUpdated(function ($state, callable $set): void {
                         if (blank($state)) {
                             $set('profile_id', null);
                             $set('student_name', null);
+
                             return;
                         }
 
@@ -43,7 +46,7 @@ class BorrowingForm
                         }
                     })
                     ->rules([
-                        fn () => function (string $attribute, $value, \Closure $fail) {
+                        fn (): Closure => function (string $attribute, $value, Closure $fail): void {
                             $exists = Profile::where('dni', trim($value))->exists();
                             if (! $exists) {
                                 $fail('El DNI ingresado no se encuentra registrado en el sistema. Debe registrar previamente el perfil del estudiante.');
@@ -52,8 +55,8 @@ class BorrowingForm
                     ])
                     ->validationMessages([
                         'required' => 'El DNI del estudiante es obligatorio.',
-                        'length'   => 'El DNI debe contener exactamente 8 dígitos numéricos.',
-                        'regex'    => 'El DNI solo debe contener números.',
+                        'length' => 'El DNI debe contener exactamente 8 dígitos numéricos.',
+                        'regex' => 'El DNI solo debe contener números.',
                     ]),
 
                 TextInput::make('student_name')
@@ -78,11 +81,12 @@ class BorrowingForm
                     ->options(function () {
                         return Equipment::all()->mapWithKeys(function ($item) {
                             $label = "[{$item->patrimonial_code}] {$item->brand} {$item->model} ({$item->type}) - Estado: {$item->status}";
+
                             return [$item->id => $label];
                         });
                     })
                     ->live()
-                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                         if (! $state) {
                             return;
                         }
@@ -95,25 +99,20 @@ class BorrowingForm
                         // Criterio 4 / Subtarea [UB-141]: Calcular automáticamente la fecha límite de devolución según tipo de recurso
                         $borrowingDateString = $get('borrowing_date') ?: now()->toDateTimeString();
                         $baseDate = Carbon::parse($borrowingDateString);
-
-                        // Reglas de préstamo según tipo de equipo:
-                        // Laptop: 2 días (48 horas)
-                        // Computadora: préstamo en sala por la jornada (6 horas)
-                        // Periférico / Otro: 24 horas (1 día)
-                        $calculatedDueDate = match ($equipment->type) {
-                            'Laptop'      => $baseDate->copy()->addDays(2),
-                            'Computadora' => $baseDate->copy()->addHours(6),
-                            'Periférico'  => $baseDate->copy()->addDay(),
-                            default       => $baseDate->copy()->addDay(),
-                        };
+                        $calculatedDueDate = Borrowing::calculateDueDate($equipment->type, $baseDate);
 
                         $set('due_date', $calculatedDueDate->format('Y-m-d H:i:s'));
                     })
                     ->rules([
-                        fn () => function (string $attribute, $value, \Closure $fail) {
+                        fn (?Borrowing $record): Closure => function (string $attribute, $value, Closure $fail) use ($record): void {
                             $equipment = Equipment::find($value);
                             if (! $equipment) {
                                 $fail('El recurso seleccionado no existe.');
+
+                                return;
+                            }
+
+                            if ($record !== null && (int) $record->equipment_id === (int) $equipment->getKey()) {
                                 return;
                             }
 
@@ -129,11 +128,11 @@ class BorrowingForm
                 // Subtarea [UB-141] / Criterio 4: Registrar fecha y hora del préstamo junto con fecha límite
                 DateTimePicker::make('borrowing_date')
                     ->label('Fecha y Hora del Préstamo')
-                    ->default(now())
+                    ->default(fn () => now())
                     ->required()
                     ->native(false)
                     ->live()
-                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
                         $equipmentId = $get('equipment_id');
                         if (! $equipmentId || ! $state) {
                             return;
@@ -145,12 +144,7 @@ class BorrowingForm
                         }
 
                         $baseDate = Carbon::parse($state);
-                        $calculatedDueDate = match ($equipment->type) {
-                            'Laptop'      => $baseDate->copy()->addDays(2),
-                            'Computadora' => $baseDate->copy()->addHours(6),
-                            'Periférico'  => $baseDate->copy()->addDay(),
-                            default       => $baseDate->copy()->addDay(),
-                        };
+                        $calculatedDueDate = Borrowing::calculateDueDate($equipment->type, $baseDate);
 
                         $set('due_date', $calculatedDueDate->format('Y-m-d H:i:s'));
                     })
@@ -160,6 +154,7 @@ class BorrowingForm
                     ->label('Fecha Límite de Devolución')
                     ->required()
                     ->native(false)
+                    ->readOnly(fn (string $operation): bool => $operation === 'create')
                     ->helperText('Calculada automáticamente según el tipo de recurso seleccionado.'),
 
                 TextInput::make('status')
