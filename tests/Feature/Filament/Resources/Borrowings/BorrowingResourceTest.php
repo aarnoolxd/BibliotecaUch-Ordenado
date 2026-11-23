@@ -554,7 +554,8 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified();
+            ->assertNotified('Préstamo actualizado correctamente')
+            ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $borrowing->refresh();
 
@@ -594,7 +595,8 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified();
+            ->assertNotified('Préstamo actualizado correctamente')
+            ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $borrowing->refresh()->load('additionalEquipment');
 
@@ -737,7 +739,8 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified();
+            ->assertNotified('Préstamo actualizado correctamente')
+            ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $borrowing->refresh();
 
@@ -802,7 +805,8 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified();
+            ->assertNotified('Préstamo actualizado correctamente')
+            ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $this->assertSame($newEquipment->getKey(), $borrowing->fresh()->equipment_id);
         $this->assertSame('Prestado', $newEquipment->fresh()->status);

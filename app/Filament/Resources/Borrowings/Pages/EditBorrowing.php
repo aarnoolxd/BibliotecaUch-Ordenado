@@ -309,4 +309,17 @@ class EditBorrowing extends EditRecord
 
         return $updatedRecord;
     }
+
+    protected function getSavedNotification(): ?Notification
+    {
+        return Notification::make()
+            ->success()
+            ->title('Préstamo actualizado correctamente')
+            ->body('Los cambios del préstamo y sus dispositivos asignados se guardaron con éxito.');
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
 }
