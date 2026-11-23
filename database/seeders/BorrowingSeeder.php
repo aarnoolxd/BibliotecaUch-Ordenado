@@ -162,6 +162,8 @@ class BorrowingSeeder extends Seeder
 
             $registeredBy = User::query()->where('email', $data['registered_by_email'])->first();
 
+            $isActiveStatus = in_array($data['status'], Borrowing::ACTIVE_STATUSES, true);
+
             $alreadyExists = Borrowing::query()
                 ->when(
                     $primaryEquipment !== null,
@@ -169,7 +171,11 @@ class BorrowingSeeder extends Seeder
                     fn ($query) => $query->whereNull('equipment_id'),
                 )
                 ->where('student_dni', $profile->dni)
-                ->where('status', $data['status'])
+                ->when(
+                    $isActiveStatus,
+                    fn ($query) => $query->whereIn('status', Borrowing::ACTIVE_STATUSES),
+                    fn ($query) => $query->where('status', $data['status']),
+                )
                 ->exists();
 
             if ($alreadyExists) {
