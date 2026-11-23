@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
                 DevUsersSeeder::class,
                 ProfileSeeder::class,
                 EquipmentSeeder::class,
+                BorrowingSeeder::class,
             ]);
         }
     }

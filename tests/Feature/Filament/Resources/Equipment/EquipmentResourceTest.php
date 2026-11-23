@@ -58,7 +58,11 @@ class EquipmentResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Equipment');
 
         $this->get(EquipmentResource::getUrl('index'))
-            ->assertOk()
+            ->assertOk();
+
+        Livewire::test(ListEquipments::class)
+            ->loadTable()
+            ->assertCanSeeTableRecords([$equipment])
             ->assertSeeText($equipment->patrimonial_code)
             ->assertSeeText($equipment->type)
             ->assertSeeText($equipment->brand)
@@ -148,7 +152,7 @@ class EquipmentResourceTest extends TestCase
         ]);
         $this->signInWithPermissions('ViewAny_Equipment');
 
-        $table = Livewire::test(ListEquipments::class);
+        $table = Livewire::test(ListEquipments::class)->loadTable();
 
         foreach (['UCH-EQ-90001', 'Laptop', 'Lenovo', 'ThinkPad X1', 'SN-UNIQUE-001'] as $term) {
             $table
@@ -156,6 +160,33 @@ class EquipmentResourceTest extends TestCase
                 ->assertCanSeeTableRecords([$matching])
                 ->assertCanNotSeeTableRecords([$other]);
         }
+    }
+
+    /**
+     * La tabla muestra el mensaje de inventario vacío únicamente cuando no hay búsqueda ni
+     * filtros activos; cuando una búsqueda o filtro no tiene coincidencias muestra un aviso específico.
+     */
+    public function test_equipment_table_distinguishes_empty_inventory_from_unmatched_search_or_filters(): void
+    {
+        $this->signInWithPermissions('ViewAny_Equipment');
+
+        Livewire::test(ListEquipments::class)
+            ->loadTable()
+            ->assertSeeText('Sin equipos registrados')
+            ->assertSeeText('El inventario aún no tiene equipos registrados.');
+
+        Equipment::factory()->withStatus('Disponible')->create();
+
+        Livewire::test(ListEquipments::class)
+            ->loadTable()
+            ->searchTable('CODIGO-INEXISTENTE')
+            ->assertSeeText('No se encontraron equipos')
+            ->assertSeeText('No hay equipos que coincidan con la búsqueda o los filtros aplicados.')
+            ->assertDontSeeText('Sin equipos registrados')
+            ->searchTable('')
+            ->filterTable('status', 'Baja')
+            ->assertSeeText('No se encontraron equipos')
+            ->assertDontSeeText('Sin equipos registrados');
     }
 
     /**
@@ -175,6 +206,7 @@ class EquipmentResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Equipment');
 
         Livewire::test(ListEquipments::class)
+            ->loadTable()
             ->sortTable('patrimonial_code')
             ->assertCanSeeTableRecords([$first, $second], inOrder: true)
             ->sortTable('patrimonial_code', 'desc')
@@ -200,6 +232,7 @@ class EquipmentResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Equipment');
 
         Livewire::test(ListEquipments::class)
+            ->loadTable()
             ->filterTable('type', 'Laptop')
             ->assertCanSeeTableRecords([$availableLaptop])
             ->assertCanNotSeeTableRecords([$maintenanceDesktop])
