@@ -53,6 +53,14 @@ class BorrowingReturnService
                 ];
             }
 
+            foreach ($authoritativeIds as $equipmentId) {
+                if (! array_key_exists($equipmentId, $indexedEvaluations)) {
+                    throw ValidationException::withMessages([
+                        'borrowing' => 'Los dispositivos del préstamo cambiaron mientras el formulario estaba abierto. Reabra la ficha y vuelva a intentar la devolución.',
+                    ]);
+                }
+            }
+
             $lockedEquipments = Equipment::query()
                 ->whereIn('id', $authoritativeIds)
                 ->orderBy('id')
@@ -73,12 +81,7 @@ class BorrowingReturnService
                     continue;
                 }
 
-                $evaluation = $indexedEvaluations[$equipmentId] ?? [
-                    'index' => 0,
-                    'has_damage' => false,
-                    'description' => null,
-                    'photo' => null,
-                ];
+                $evaluation = $indexedEvaluations[$equipmentId];
 
                 if ($evaluation['has_damage']) {
                     $errors = [];
