@@ -20,8 +20,26 @@ class EquipmentIncidentFactory extends Factory
     public function definition(): array
     {
         return [
-            'equipment_id' => Equipment::factory(),
             'borrowing_id' => Borrowing::factory(),
+            'equipment_id' => function (array $attributes): int {
+                $borrowing = Borrowing::query()
+                    ->with('additionalEquipment')
+                    ->find($attributes['borrowing_id'] ?? null);
+
+                if ($borrowing !== null) {
+                    if ($borrowing->equipment_id !== null) {
+                        return (int) $borrowing->equipment_id;
+                    }
+
+                    $additionalId = $borrowing->additionalEquipment->first()?->getKey();
+
+                    if ($additionalId !== null) {
+                        return (int) $additionalId;
+                    }
+                }
+
+                return (int) Equipment::factory()->create()->getKey();
+            },
             'description' => fake()->sentence(10),
             'photo' => null,
         ];
