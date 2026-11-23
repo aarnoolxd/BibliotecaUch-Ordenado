@@ -8,11 +8,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Columns\Layout\Panel;
-use Filament\Tables\Columns\Layout\Split;
-use Filament\Tables\Columns\Layout\Stack;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
 class EquipmentTable
@@ -29,7 +25,6 @@ class EquipmentTable
 
             // Indicador visual de carga diferida (Criterio 5 HU-04)
             ->deferLoading()
-            ->striped()
 
             // UB-117: Mensaje explicativo cuando el inventario esté vacío o sin coincidencias (Criterio 5 HU-04)
             ->emptyStateIcon(Heroicon::OutlinedComputerDesktop)
@@ -40,91 +35,60 @@ class EquipmentTable
                 ? 'No hay equipos que coincidan con la búsqueda o los filtros aplicados.'
                 : 'El inventario aún no tiene equipos registrados. Haz clic en "Crear Equipo" para añadir el primer recurso.')
 
-            // UB-116: Columnas principales del listado (Criterio 2 HU-04)
             ->columns([
-                Split::make([
-                    TextColumn::make('patrimonial_code')
-                        ->label('Cód. Patrimonial')
-                        ->searchable()
-                        ->sortable()
-                        ->weight('bold')
-                        ->icon(Heroicon::OutlinedComputerDesktop),
+                TextColumn::make('patrimonial_code')
+                    ->label('Cód. Patrimonial')
+                    ->searchable()
+                    ->sortable(),
 
-                    TextColumn::make('type')
-                        ->label('Categoría')
-                        ->badge()
-                        ->color('info')
-                        ->searchable()
-                        ->sortable(),
+                TextColumn::make('type')
+                    ->label('Categoría')
+                    ->badge()
+                    ->color('info')
+                    ->searchable()
+                    ->sortable(),
 
-                    TextColumn::make('brand')
-                        ->label('Marca')
-                        ->searchable()
-                        ->sortable(),
+                TextColumn::make('brand')
+                    ->label('Marca')
+                    ->searchable()
+                    ->sortable(),
 
-                    TextColumn::make('model')
-                        ->label('Modelo')
-                        ->searchable()
-                        ->sortable(),
+                TextColumn::make('model')
+                    ->label('Modelo')
+                    ->searchable()
+                    ->sortable(),
 
-                    TextColumn::make('status')
-                        ->label('Estado')
-                        ->badge()
-                        ->color(fn (string $state): string => match ($state) {
-                            'Disponible' => 'success',
-                            'Prestado' => 'warning',
-                            'Mantenimiento' => 'danger',
-                            'Baja' => 'gray',
-                            default => 'secondary',
-                        })
-                        ->sortable(),
-                ]),
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'Disponible' => 'success',
+                        'Prestado' => 'warning',
+                        'Mantenimiento' => 'danger',
+                        default => 'gray',
+                    })
+                    ->sortable(),
 
-                // UB-119: Panel expandible / acordeón con información secundaria (Criterio 3 HU-04)
-                Panel::make([
-                    Stack::make([
-                        TextColumn::make('serial_number')
-                            ->label('N° de Serie')
-                            ->icon(Heroicon::OutlinedFingerPrint)
-                            ->searchable()
-                            ->copyable()
-                            ->copyMessage('Número de serie copiado al portapapeles'),
+                TextColumn::make('serial_number')
+                    ->label('N° de Serie')
+                    ->searchable()
+                    ->copyable()
+                    ->copyMessage('Número de serie copiado al portapapeles')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                        TextColumn::make('observations')
-                            ->label('Observaciones')
-                            ->icon(Heroicon::OutlinedDocumentText)
-                            ->placeholder('Sin observaciones registradas.')
-                            ->wrap(),
+                TextColumn::make('observations')
+                    ->label('Observaciones')
+                    ->placeholder('Sin observaciones registradas.')
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                        TextColumn::make('created_at')
-                            ->label('Fecha de Registro')
-                            ->icon(Heroicon::OutlinedCalendar)
-                            ->dateTime('d/m/Y H:i')
-                            ->sortable(),
-                    ]),
-                ])->collapsible(),
+                TextColumn::make('created_at')
+                    ->label('Fecha de Registro')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
-
-            // Filtros por categoría y estado (Criterio 3 HU-04)
-            ->filters([
-                SelectFilter::make('type')
-                    ->label('Filtrar por Categoría')
-                    ->options([
-                        'Computadora' => 'Computadora',
-                        'Laptop' => 'Laptop',
-                        'Periférico' => 'Periférico',
-                        'Otro' => 'Otro',
-                    ]),
-
-                SelectFilter::make('status')
-                    ->label('Filtrar por Estado')
-                    ->options([
-                        'Disponible' => 'Disponible',
-                        'Prestado' => 'Prestado',
-                        'Mantenimiento' => 'Mantenimiento',
-                        'Baja' => 'Baja',
-                    ]),
-            ])
+            ->filters([])
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
@@ -138,18 +102,13 @@ class EquipmentTable
     }
 
     /**
-     * Determina si la tabla tiene una búsqueda, un filtro o una pestaña de estado activa.
+     * Determina si la tabla tiene una búsqueda o filtro activo.
      */
     private static function hasActiveSearchOrFilters(Table $table): bool
     {
         $livewire = $table->getLivewire();
 
-        $hasActiveTabFilter = property_exists($livewire, 'activeTab')
-            && filled($livewire->activeTab)
-            && $livewire->activeTab !== 'todos';
-
         return $livewire->hasTableSearch()
-            || $table->getActiveFiltersCount() > 0
-            || $hasActiveTabFilter;
+            || $table->getActiveFiltersCount() > 0;
     }
 }

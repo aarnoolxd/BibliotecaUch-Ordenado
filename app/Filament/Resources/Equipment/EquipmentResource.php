@@ -8,7 +8,6 @@ use App\Filament\Resources\Equipment\Pages\ListEquipments;
 use App\Filament\Resources\Equipment\Pages\ViewEquipment;
 use App\Filament\Resources\Equipment\Schemas\EquipmentForm;
 use App\Filament\Resources\Equipment\Tables\EquipmentTable;
-use App\Filament\Resources\Equipment\Widgets\EquipmentStatusOverview;
 use App\Models\Equipment;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -22,12 +21,15 @@ class EquipmentResource extends Resource
     protected static ?string $model = Equipment::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedComputerDesktop;
+
     protected static string|BackedEnum|null $activeNavigationIcon = Heroicon::ComputerDesktop;
 
     protected static string|UnitEnum|null $navigationGroup = 'Gestión de Inventario';
+
     protected static ?int $navigationSort = 1;
 
     protected static ?string $modelLabel = 'Equipo';
+
     protected static ?string $pluralModelLabel = 'Módulo Equipos';
 
     public static function getModelLabel(): string
@@ -48,13 +50,6 @@ class EquipmentResource extends Resource
     public static function table(Table $table): Table
     {
         return EquipmentTable::configure($table);
-    }
-
-    public static function getWidgets(): array
-    {
-        return [
-            EquipmentStatusOverview::class,
-        ];
     }
 
     public static function getRelations(): array
