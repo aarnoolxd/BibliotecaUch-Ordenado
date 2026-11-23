@@ -10,7 +10,8 @@ class EquipmentSeeder extends Seeder
 {
     /**
      * Crea equipos tecnológicos de ejemplo en el inventario para entornos
-     * de desarrollo y pruebas, cubriendo todas las categorías y estados.
+     * de desarrollo y pruebas, cubriendo equipos principales (Computadora, Laptop)
+     * y dispositivos adicionales (Periférico, Otro) en todos los estados operativos.
      */
     public function run(): void
     {
@@ -22,6 +23,7 @@ class EquipmentSeeder extends Seeder
 
         /** @var list<array{patrimonial_code: string, type: string, brand: string, model: string, serial_number: string, status: string, observations: ?string}> $items */
         $items = [
+            // Equipos principales: Computadoras
             [
                 'patrimonial_code' => 'UCH-EQ-00001',
                 'type' => 'Computadora',
@@ -38,8 +40,19 @@ class EquipmentSeeder extends Seeder
                 'model' => 'EliteDesk 800 G6',
                 'serial_number' => 'SN-UCH-PC-0002',
                 'status' => 'Prestado',
-                'observations' => 'Asignada temporalmente a módulo de catálogo digital.',
+                'observations' => 'Asignada en préstamo activo en sala.',
             ],
+            [
+                'patrimonial_code' => 'UCH-EQ-00011',
+                'type' => 'Computadora',
+                'brand' => 'Lenovo',
+                'model' => 'ThinkCentre M70q',
+                'serial_number' => 'SN-UCH-PC-0011',
+                'status' => 'Prestado',
+                'observations' => 'Computadora con préstamo vencido pendiente de devolución.',
+            ],
+
+            // Equipos principales: Laptops
             [
                 'patrimonial_code' => 'UCH-EQ-00003',
                 'type' => 'Laptop',
@@ -56,16 +69,27 @@ class EquipmentSeeder extends Seeder
                 'model' => 'ProBook 450 G9',
                 'serial_number' => 'SN-UCH-LP-0004',
                 'status' => 'Mantenimiento',
-                'observations' => 'En revisión técnica por reemplazo de batería.',
+                'observations' => 'Derivada a mantenimiento por bisagra dañada reportada en devolución.',
             ],
+            [
+                'patrimonial_code' => 'UCH-EQ-00012',
+                'type' => 'Laptop',
+                'brand' => 'Dell',
+                'model' => 'Latitude 5430',
+                'serial_number' => 'SN-UCH-LP-0012',
+                'status' => 'Disponible',
+                'observations' => 'Disponible para préstamo en biblioteca.',
+            ],
+
+            // Dispositivos adicionales: Periféricos
             [
                 'patrimonial_code' => 'UCH-EQ-00005',
                 'type' => 'Periférico',
                 'brand' => 'Logitech',
-                'model' => 'MK270 Wireless',
+                'model' => 'M185 Wireless',
                 'serial_number' => 'SN-UCH-PF-0005',
-                'status' => 'Disponible',
-                'observations' => 'Combo teclado y mouse inalámbrico con receptor USB.',
+                'status' => 'Prestado',
+                'observations' => 'Mouse inalámbrico con receptor USB.',
             ],
             [
                 'patrimonial_code' => 'UCH-EQ-00006',
@@ -76,6 +100,26 @@ class EquipmentSeeder extends Seeder
                 'status' => 'Baja',
                 'observations' => 'Dado de baja por falla irreparable en el sensor óptico.',
             ],
+            [
+                'patrimonial_code' => 'UCH-EQ-00009',
+                'type' => 'Periférico',
+                'brand' => 'Logitech',
+                'model' => 'K120 Teclado USB',
+                'serial_number' => 'SN-UCH-PF-0009',
+                'status' => 'Prestado',
+                'observations' => 'Teclado alámbrico en préstamo de solo periféricos.',
+            ],
+            [
+                'patrimonial_code' => 'UCH-EQ-00013',
+                'type' => 'Periférico',
+                'brand' => 'HyperX',
+                'model' => 'Cloud Stinger Core',
+                'serial_number' => 'SN-UCH-PF-0013',
+                'status' => 'Disponible',
+                'observations' => 'Audífonos con micrófono para sesiones multimedia.',
+            ],
+
+            // Dispositivos adicionales: Otros
             [
                 'patrimonial_code' => 'UCH-EQ-00007',
                 'type' => 'Otro',
@@ -93,6 +137,24 @@ class EquipmentSeeder extends Seeder
                 'serial_number' => 'SN-UCH-OT-0008',
                 'status' => 'Disponible',
                 'observations' => null,
+            ],
+            [
+                'patrimonial_code' => 'UCH-EQ-00010',
+                'type' => 'Otro',
+                'brand' => 'UGREEN',
+                'model' => 'Adaptador USB-C a HDMI',
+                'serial_number' => 'SN-UCH-OT-0010',
+                'status' => 'Prestado',
+                'observations' => 'Adaptador en préstamo de solo periféricos/otros.',
+            ],
+            [
+                'patrimonial_code' => 'UCH-EQ-00014',
+                'type' => 'Otro',
+                'brand' => 'Anker',
+                'model' => 'Cargador USB-C 65W',
+                'serial_number' => 'SN-UCH-OT-0014',
+                'status' => 'Disponible',
+                'observations' => 'Cargador rápido compatible con laptops institucionales.',
             ],
         ];
 
