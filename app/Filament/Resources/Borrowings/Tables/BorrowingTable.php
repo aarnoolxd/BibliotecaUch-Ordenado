@@ -204,6 +204,7 @@ class BorrowingTable
                                         ->acceptedFileTypes(['image/jpeg', 'image/png'])
                                         ->maxSize(4096)
                                         ->directory('borrowings/incidents')
+                                        ->preventFilePathTampering()
                                         ->visible(fn (Get $get): bool => (bool) $get('has_damage'))
                                         ->required(fn (Get $get): bool => (bool) $get('has_damage'))
                                         ->validationMessages([
