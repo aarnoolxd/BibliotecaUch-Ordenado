@@ -59,10 +59,9 @@ class BorrowingResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => ListBorrowings::route('/'),
+            'index' => ListBorrowings::route('/'),
             'create' => CreateBorrowing::route('/create'),
-            'view'   => ViewBorrowing::route('/{record}'),
-            'edit'   => EditBorrowing::route('/{record}/edit'),
+            'edit' => EditBorrowing::route('/{record}/edit'),
         ];
     }
 }
