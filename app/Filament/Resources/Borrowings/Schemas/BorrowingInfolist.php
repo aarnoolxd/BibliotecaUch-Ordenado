@@ -197,6 +197,7 @@ class BorrowingInfolist
                                             ->label('Evidencia')
                                             ->view('filament.infolists.lightbox-image')
                                             ->viewData(fn (EquipmentIncident $record): array => [
+                                                'disk' => EquipmentIncident::photoDisk(),
                                                 'alt' => $record->equipment !== null
                                                     ? "Evidencia — [{$record->equipment->patrimonial_code}] {$record->equipment->brand} {$record->equipment->model}"
                                                     : 'Evidencia fotográfica del daño',

@@ -9,23 +9,23 @@
         if (filter_var($photoPath, FILTER_VALIDATE_URL) !== false || str($photoPath)->startsWith('data:')) {
             $imageUrl = $photoPath;
         } else {
-            $diskName = config('filament.default_filesystem_disk');
+            $diskName = $disk ?? config('filament.default_filesystem_disk');
 
-            /** @var FilesystemAdapter $disk */
-            $disk = Storage::disk($diskName);
+            /** @var FilesystemAdapter $storageDisk */
+            $storageDisk = Storage::disk($diskName);
 
-            if ($disk->exists($photoPath)) {
+            if ($storageDisk->exists($photoPath)) {
                 if ($diskName !== 'public') {
                     try {
-                        $imageUrl = $disk->temporaryUrl(
+                        $imageUrl = $storageDisk->temporaryUrl(
                             $photoPath,
                             now()->addMinutes((int) config('filament.temporary_file_url_expiry_minutes', 30))->endOfHour(),
                         );
                     } catch (\Throwable) {
-                        $imageUrl = $disk->url($photoPath);
+                        $imageUrl = $storageDisk->url($photoPath);
                     }
                 } else {
-                    $imageUrl = $disk->url($photoPath);
+                    $imageUrl = $storageDisk->url($photoPath);
                 }
             }
         }

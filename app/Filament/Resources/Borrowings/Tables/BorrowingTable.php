@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Borrowings\Tables;
 use App\Filament\Resources\Borrowings\BorrowingResource;
 use App\Models\Borrowing;
 use App\Models\Equipment;
+use App\Models\EquipmentIncident;
 use App\Services\BorrowingReturnService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -200,6 +201,8 @@ class BorrowingTable
                                     FileUpload::make('photo')
                                         ->label('Fotografía de evidencia')
                                         ->helperText('Adjunte una fotografía en formato JPG o PNG (máx. 4 MB) que evidencie el daño.')
+                                        ->disk(fn (): string => EquipmentIncident::photoDisk())
+                                        ->visibility('private')
                                         ->image()
                                         ->acceptedFileTypes(['image/jpeg', 'image/png'])
                                         ->maxSize(4096)

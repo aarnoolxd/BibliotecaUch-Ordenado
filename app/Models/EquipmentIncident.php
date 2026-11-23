@@ -22,6 +22,17 @@ class EquipmentIncident extends Model
     ];
 
     /**
+     * Disco privado garantizado para almacenar fotografías de evidencia de incidencias.
+     * Si el disco por defecto de Filament está configurado como public, usa local privado.
+     */
+    public static function photoDisk(): string
+    {
+        $configuredDisk = (string) config('filament.default_filesystem_disk', 'local');
+
+        return $configuredDisk === 'public' ? 'local' : $configuredDisk;
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
