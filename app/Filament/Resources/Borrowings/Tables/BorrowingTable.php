@@ -26,8 +26,10 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class BorrowingTable
 {
@@ -221,13 +223,17 @@ class BorrowingTable
                                         ]),
                                 ]),
                         ])
-                        ->action(function (Borrowing $record, array $data, Action $action): void {
+                        ->action(function (Borrowing $record, array $data): void {
+                            $uploadedPhotoPaths = self::extractUploadedPhotoPaths($data['items'] ?? []);
+
                             try {
                                 $result = app(BorrowingReturnService::class)->registerReturn(
                                     borrowing: $record,
                                     evaluations: $data['items'] ?? [],
                                 );
                             } catch (ValidationException $exception) {
+                                self::cleanupUnreferencedPhotos($uploadedPhotoPaths);
+
                                 $errors = $exception->errors();
                                 $hasEquipmentMismatch = array_key_exists('borrowing', $errors)
                                     || collect(array_keys($errors))->contains(
@@ -247,12 +253,14 @@ class BorrowingTable
                                     ->persistent()
                                     ->send();
 
-                                if ($hasEquipmentMismatch) {
-                                    return;
-                                }
+                                return;
+                            } catch (Throwable $exception) {
+                                self::cleanupUnreferencedPhotos($uploadedPhotoPaths);
 
-                                $action->halt();
+                                throw $exception;
                             }
+
+                            self::cleanupUnreferencedPhotos($uploadedPhotoPaths);
 
                             $evaluatedCount = count($data['items'] ?? []);
 
@@ -317,5 +325,56 @@ class BorrowingTable
         }
 
         return $items;
+    }
+
+    /**
+     * Extrae las rutas de fotografías subidas en el formulario de devolución.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return list<string>
+     */
+    private static function extractUploadedPhotoPaths(array $items): array
+    {
+        $paths = [];
+
+        foreach ($items as $item) {
+            $photo = $item['photo'] ?? null;
+
+            if (is_string($photo) && trim($photo) !== '') {
+                $paths[] = $photo;
+            }
+        }
+
+        return array_values(array_unique($paths));
+    }
+
+    /**
+     * Elimina fotografías recién cargadas solo cuando se confirma en base de datos
+     * que no pertenecen a ninguna incidencia persistida.
+     *
+     * @param  list<string>  $paths
+     */
+    private static function cleanupUnreferencedPhotos(array $paths): void
+    {
+        if ($paths === []) {
+            return;
+        }
+
+        try {
+            $referencedPaths = EquipmentIncident::query()
+                ->whereIn('photo', $paths)
+                ->pluck('photo')
+                ->all();
+        } catch (Throwable) {
+            return;
+        }
+
+        $orphanPaths = array_values(array_diff($paths, $referencedPaths));
+
+        if ($orphanPaths === []) {
+            return;
+        }
+
+        Storage::disk(EquipmentIncident::photoDisk())->delete($orphanPaths);
     }
 }
