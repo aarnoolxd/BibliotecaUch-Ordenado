@@ -218,6 +218,42 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
+     * La tabla de préstamos permite buscar y ordenar por el nombre completo del estudiante
+     * usando las columnas reales first_name y last_name de profiles.
+     */
+    public function test_borrowings_table_can_search_and_sort_by_student_full_name(): void
+    {
+        $anaProfile = Profile::factory()->create([
+            'dni' => '70100001',
+            'first_name' => 'Ana',
+            'last_name' => 'Zapata',
+        ]);
+        $brunoProfile = Profile::factory()->create([
+            'dni' => '70100002',
+            'first_name' => 'Bruno',
+            'last_name' => 'Alvarez',
+        ]);
+        $anaBorrowing = Borrowing::factory()->for($anaProfile)->create();
+        $brunoBorrowing = Borrowing::factory()->for($brunoProfile)->create();
+        $this->signInWithPermissions('ViewAny_Borrowing');
+
+        $table = Livewire::test(ListBorrowings::class);
+
+        foreach (['Ana', 'Zapata', 'ana zapata'] as $term) {
+            $table
+                ->searchTable($term)
+                ->assertCanSeeTableRecords([$anaBorrowing])
+                ->assertCanNotSeeTableRecords([$brunoBorrowing]);
+        }
+
+        Livewire::test(ListBorrowings::class)
+            ->sortTable('profile.full_name')
+            ->assertCanSeeTableRecords([$anaBorrowing, $brunoBorrowing], inOrder: true)
+            ->sortTable('profile.full_name', 'desc')
+            ->assertCanSeeTableRecords([$brunoBorrowing, $anaBorrowing], inOrder: true);
+    }
+
+    /**
      * Al ingresar un DNI registrado en el formulario, deben autocompletarse profile_id
      * y student_name; al cambiarlo por un DNI inexistente o vaciarlo desde un estado cargado,
      * ambos campos deben limpiarse.
@@ -413,6 +449,75 @@ class BorrowingResourceTest extends TestCase
         $this->assertSame('2026-11-22 09:00:00', $borrowing->due_date->format('Y-m-d H:i:s'));
         $this->assertSame('Observación actualizada.', $borrowing->observations);
         $this->assertSame('Prestado', $equipment->fresh()->status);
+    }
+
+    /**
+     * Al cambiar student_dni al editar un préstamo, EditBorrowing debe actualizar
+     * también profile_id al perfil correspondiente aunque no se dispare el evento blur.
+     */
+    public function test_editing_a_borrowing_updates_profile_id_when_student_dni_changes(): void
+    {
+        $originalProfile = Profile::factory()->create(['dni' => '74447701']);
+        $newProfile = Profile::factory()->create(['dni' => '74447702']);
+        $equipment = Equipment::factory()->withStatus('Prestado')->create();
+        $borrowing = Borrowing::factory()
+            ->for($equipment)
+            ->for($originalProfile)
+            ->create([
+                'status' => 'En curso',
+                'borrowing_date' => '2026-11-20 09:00:00',
+                'due_date' => '2026-11-22 09:00:00',
+            ]);
+        $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
+
+        Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
+            ->fillForm([
+                'student_dni' => $newProfile->dni,
+                'equipment_id' => $equipment->getKey(),
+                'borrowing_date' => '2026-11-20 09:00:00',
+                'due_date' => '2026-11-22 09:00:00',
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertNotified();
+
+        $borrowing->refresh();
+
+        $this->assertSame($newProfile->dni, $borrowing->student_dni);
+        $this->assertSame($newProfile->getKey(), $borrowing->profile_id);
+    }
+
+    /**
+     * Al editar un préstamo, due_date no puede ser anterior a borrowing_date.
+     */
+    public function test_editing_a_borrowing_rejects_due_date_earlier_than_borrowing_date(): void
+    {
+        $profile = Profile::factory()->create(['dni' => '74448801']);
+        $equipment = Equipment::factory()->withStatus('Prestado')->create();
+        $borrowing = Borrowing::factory()
+            ->for($equipment)
+            ->for($profile)
+            ->create([
+                'status' => 'En curso',
+                'borrowing_date' => '2026-11-20 09:00:00',
+                'due_date' => '2026-11-22 09:00:00',
+            ]);
+        $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
+
+        Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
+            ->fillForm([
+                'student_dni' => $profile->dni,
+                'equipment_id' => $equipment->getKey(),
+                'borrowing_date' => '2026-11-20 09:00:00',
+                'due_date' => '2026-11-19 08:00:00',
+            ])
+            ->call('save')
+            ->assertHasFormErrors([
+                'due_date' => 'La fecha límite de devolución no puede ser anterior a la fecha del préstamo.',
+            ])
+            ->assertNotNotified();
+
+        $this->assertSame('2026-11-22 09:00:00', $borrowing->fresh()->due_date->format('Y-m-d H:i:s'));
     }
 
     /**
