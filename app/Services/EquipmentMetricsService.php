@@ -11,8 +11,7 @@ class EquipmentMetricsService
      * Obtiene el consolidado de métricas por estado, calculando totales y porcentajes.
      * Permite filtrar opcionalmente por categoría/tipo de equipo.
      *
-     * @param string|null $type
-     * @return array
+     * @return array{total: int, type: ?string, by_status: array<string, array{count: int, percentage: float, color: string}>}
      */
     public function getMetrics(?string $type = null): array
     {
@@ -22,21 +21,21 @@ class EquipmentMetricsService
             $query->where('type', $type);
         }
 
-        $total = (clone $query)->count();
+        $counts = $query
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
+        $total = (int) $counts->sum();
 
         $statuses = [
-            'Disponible'    => ['count' => 0, 'percentage' => 0.0, 'color' => 'success'],
-            'Prestado'      => ['count' => 0, 'percentage' => 0.0, 'color' => 'warning'],
+            'Disponible' => ['count' => 0, 'percentage' => 0.0, 'color' => 'success'],
+            'Prestado' => ['count' => 0, 'percentage' => 0.0, 'color' => 'warning'],
             'Mantenimiento' => ['count' => 0, 'percentage' => 0.0, 'color' => 'danger'],
-            'Baja'          => ['count' => 0, 'percentage' => 0.0, 'color' => 'gray'],
+            'Baja' => ['count' => 0, 'percentage' => 0.0, 'color' => 'gray'],
         ];
 
         if ($total > 0) {
-            $counts = (clone $query)
-                ->selectRaw('status, COUNT(*) as aggregate')
-                ->groupBy('status')
-                ->pluck('aggregate', 'status');
-
             foreach ($statuses as $statusKey => &$data) {
                 $count = (int) ($counts[$statusKey] ?? 0);
                 $data['count'] = $count;
@@ -46,8 +45,8 @@ class EquipmentMetricsService
         }
 
         return [
-            'total'     => $total,
-            'type'      => $type,
+            'total' => $total,
+            'type' => $type,
             'by_status' => $statuses,
         ];
     }
@@ -55,7 +54,7 @@ class EquipmentMetricsService
     /**
      * Obtiene el consolidado de métricas agrupadas por categoría y desglosadas por estado.
      *
-     * @return Collection
+     * @return Collection<int, array{total: int, type: ?string, by_status: array<string, array{count: int, percentage: float, color: string}>}>
      */
     public function getGroupedByCategory(): Collection
     {
