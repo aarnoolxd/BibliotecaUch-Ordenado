@@ -26,6 +26,8 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class BorrowingTable
 {
@@ -219,11 +221,38 @@ class BorrowingTable
                                         ]),
                                 ]),
                         ])
-                        ->action(function (Borrowing $record, array $data): void {
-                            $result = app(BorrowingReturnService::class)->registerReturn(
-                                borrowing: $record,
-                                evaluations: $data['items'] ?? [],
-                            );
+                        ->action(function (Borrowing $record, array $data, Action $action): void {
+                            try {
+                                $result = app(BorrowingReturnService::class)->registerReturn(
+                                    borrowing: $record,
+                                    evaluations: $data['items'] ?? [],
+                                );
+                            } catch (ValidationException $exception) {
+                                $errors = $exception->errors();
+                                $hasEquipmentMismatch = array_key_exists('borrowing', $errors)
+                                    || collect(array_keys($errors))->contains(
+                                        fn (string $key): bool => Str::is('items.*.equipment_id', $key),
+                                    );
+
+                                $body = match (true) {
+                                    array_key_exists('borrowing', $errors) => (string) ($errors['borrowing'][0] ?? 'Los equipos del préstamo cambiaron. Reabra la ficha y revise los equipos actuales.'),
+                                    $hasEquipmentMismatch => 'Los equipos del préstamo cambiaron mientras el formulario estaba abierto. Reabra la ficha para revisar los equipos actuales y vuelva a intentarlo.',
+                                    default => (string) (collect($errors)->flatten()->first() ?? 'No se pudo validar la devolución. Revise los datos e inténtelo nuevamente.'),
+                                };
+
+                                Notification::make()
+                                    ->title('No se pudo registrar la devolución')
+                                    ->body($body)
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+
+                                if ($hasEquipmentMismatch) {
+                                    return;
+                                }
+
+                                $action->halt();
+                            }
 
                             $evaluatedCount = count($data['items'] ?? []);
 
