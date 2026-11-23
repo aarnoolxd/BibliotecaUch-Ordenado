@@ -24,22 +24,12 @@ class UserResource extends Resource
     protected static string|BackedEnum|null $activeNavigationIcon = Heroicon::Users;
 
     // Agrupación en el menú lateral y orden de aparición
-    protected static string|UnitEnum|null $navigationGroup = 'Gestión de Seguridad';
+    protected static string|UnitEnum|null $navigationGroup = 'Gestión de Cuentas y Perfiles';
     protected static ?int $navigationSort = 3;
 
     // Etiquetas del modelo en singular y plural
     protected static ?string $modelLabel = 'Cuenta';
     protected static ?string $pluralModelLabel = 'Módulo Cuentas';
-
-    public static function getModelLabel(): string
-    {
-        return 'Cuenta';
-    }
-
-    public static function getPluralModelLabel(): string
-    {
-        return 'Módulo Cuentas';
-    }
 
     public static function form(Schema $schema): Schema
     {

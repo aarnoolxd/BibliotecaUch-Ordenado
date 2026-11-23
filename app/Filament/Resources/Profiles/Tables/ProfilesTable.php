@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Profiles\Tables;
 
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -19,7 +18,7 @@ class ProfilesTable
                 ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn () => asset('images/banner.svg')),
+                    ->defaultImageUrl(fn() => asset('images/banner.svg')),
 
                 TextColumn::make('dni')
                     ->label('DNI')
@@ -61,7 +60,7 @@ class ProfilesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    // Add bulk actions here if needed
                 ]),
             ]);
     }
