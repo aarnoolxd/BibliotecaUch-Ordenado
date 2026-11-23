@@ -217,7 +217,7 @@ class BorrowingForm
                             ->orderBy('patrimonial_code')
                             ->get()
                             ->mapWithKeys(function (Equipment $item): array {
-                                $label = "{$item->brand} {$item->model}";
+                                $label = "[{$item->patrimonial_code}] {$item->brand} {$item->model}";
 
                                 return [$item->id => $label];
                             })
