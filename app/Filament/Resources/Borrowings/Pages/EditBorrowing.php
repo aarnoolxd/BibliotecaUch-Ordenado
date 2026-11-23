@@ -7,7 +7,6 @@ use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Models\Profile;
 use Carbon\Carbon;
-use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
@@ -27,7 +26,7 @@ class EditBorrowing extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make(),
+            BorrowingResource::borrowingDetailsAction(),
         ];
     }
 
@@ -65,14 +64,16 @@ class EditBorrowing extends EditRecord
         /** @var Borrowing $currentRecord */
         $currentRecord = $this->record;
 
-        if ($currentRecord->status === Borrowing::STATUS_RETURNED) {
-            $data['equipment_id'] = $currentRecord->equipment_id;
-            $this->additionalEquipmentIds = $currentRecord->additionalEquipment()
-                ->pluck('equipment.id')
-                ->map(fn (mixed $id): int => (int) $id)
-                ->all();
+        if ($currentRecord->status !== Borrowing::STATUS_IN_PROGRESS) {
+            Notification::make()
+                ->danger()
+                ->title('Edición no permitida')
+                ->body('Solo se pueden editar préstamos que se encuentran en estado "En curso".')
+                ->send();
 
-            return $data;
+            throw ValidationException::withMessages([
+                'data.student_dni' => 'Solo se pueden editar préstamos en estado "En curso".',
+            ]);
         }
 
         $primaryEquipmentId = filled($data['equipment_id'] ?? null) ? (int) $data['equipment_id'] : null;
@@ -167,13 +168,10 @@ class EditBorrowing extends EditRecord
             ->lockForUpdate()
             ->findOrFail($record->getKey());
 
-        $isActiveBorrowing = in_array($lockedRecord->status, Borrowing::ACTIVE_STATUSES, true);
-
-        if (! $isActiveBorrowing) {
-            $updatedRecord = parent::handleRecordUpdate($lockedRecord, $data);
-            $record->setRawAttributes($updatedRecord->getAttributes(), sync: true);
-
-            return $updatedRecord;
+        if ($lockedRecord->status !== Borrowing::STATUS_IN_PROGRESS) {
+            throw ValidationException::withMessages([
+                'data.student_dni' => 'Solo se pueden editar préstamos en estado "En curso".',
+            ]);
         }
 
         $previousIds = $lockedRecord->allEquipmentIds();
