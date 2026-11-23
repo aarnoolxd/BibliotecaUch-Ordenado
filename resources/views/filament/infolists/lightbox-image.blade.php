@@ -54,6 +54,7 @@
         <template x-teleport="body">
             <div
                 x-show="open"
+                x-trap="open"
                 x-cloak
                 x-transition.opacity.duration.150ms
                 x-on:click.self="open = false"
