@@ -37,10 +37,10 @@ class ProfileForm
                     ->unique(ignoreRecord: true)
                     ->validationMessages([
                         'required' => 'El número de DNI es obligatorio.',
-                        'regex'    => 'El DNI debe contener exactamente 8 dígitos numéricos.',
-                        'min'      => 'El DNI debe tener exactamente 8 dígitos.',
-                        'max'      => 'El DNI no puede superar los 8 dígitos.',
-                        'unique'   => 'Este número de DNI ya se encuentra registrado.',
+                        'regex' => 'El DNI debe contener exactamente 8 dígitos numéricos.',
+                        'min' => 'El DNI debe tener exactamente 8 dígitos.',
+                        'max' => 'El DNI no puede superar los 8 dígitos.',
+                        'unique' => 'Este número de DNI ya se encuentra registrado.',
                     ]),
 
                 TextInput::make('first_name')
@@ -52,8 +52,8 @@ class ProfileForm
                     ->maxLength(255)
                     ->validationMessages([
                         'required' => 'Los nombres son obligatorios.',
-                        'min'      => 'Los nombres deben tener al menos 2 caracteres.',
-                        'max'      => 'Los nombres no pueden superar los 255 caracteres.',
+                        'min' => 'Los nombres deben tener al menos 2 caracteres.',
+                        'max' => 'Los nombres no pueden superar los 255 caracteres.',
                     ]),
 
                 TextInput::make('last_name')
@@ -65,8 +65,8 @@ class ProfileForm
                     ->maxLength(255)
                     ->validationMessages([
                         'required' => 'Los apellidos son obligatorios.',
-                        'min'      => 'Los apellidos deben tener al menos 2 caracteres.',
-                        'max'      => 'Los apellidos no pueden superar los 255 caracteres.',
+                        'min' => 'Los apellidos deben tener al menos 2 caracteres.',
+                        'max' => 'Los apellidos no pueden superar los 255 caracteres.',
                     ]),
 
                 TextInput::make('phone')
@@ -95,9 +95,8 @@ class ProfileForm
                     ->acceptedFileTypes(['image/jpeg', 'image/png'])
                     ->maxSize(2048)
                     ->directory('profiles/photos')
-                    ->visibility('public')
                     ->validationMessages([
-                        'max'   => 'La fotografía no debe superar los 2 MB (2048 KB).',
+                        'max' => 'La fotografía no debe superar los 2 MB (2048 KB).',
                         'mimes' => 'La fotografía debe ser un archivo de formato JPG o PNG.',
                     ]),
             ]);
