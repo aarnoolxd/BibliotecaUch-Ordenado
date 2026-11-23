@@ -18,6 +18,8 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Gate;
@@ -895,8 +897,9 @@ class BorrowingResourceTest extends TestCase
      */
     public function test_registering_a_return_with_partial_damage_creates_incident_with_private_photo_and_sets_only_damaged_to_maintenance(): void
     {
-        $disk = config('filament.default_filesystem_disk');
+        $disk = EquipmentIncident::photoDisk();
         Storage::fake($disk);
+        Storage::fake('public');
 
         $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create([
             'patrimonial_code' => 'UCH-LAP-100',
@@ -915,8 +918,20 @@ class BorrowingResourceTest extends TestCase
 
         $damagePhoto = UploadedFile::fake()->image('mouse-roto.jpg', 400, 300);
 
-        Livewire::test(ListBorrowings::class)
-            ->callAction(TestAction::make('registerReturn')->table($borrowing), [
+        $mountedReturn = Livewire::test(ListBorrowings::class)
+            ->mountAction(TestAction::make('registerReturn')->table($borrowing));
+
+        $livewireInstance = $mountedReturn->instance();
+        $mountedSchema = $livewireInstance->getSchema($livewireInstance->getMountedActionSchemaName());
+        $photoComponent = collect($mountedSchema->getFlatComponents(withHidden: true))
+            ->first(fn (mixed $component): bool => $component instanceof FileUpload);
+
+        $this->assertInstanceOf(FileUpload::class, $photoComponent);
+        $this->assertSame($disk, $photoComponent->getDiskName());
+        $this->assertSame('private', $photoComponent->getVisibility());
+
+        $mountedReturn
+            ->fillForm([
                 'items' => [
                     [
                         'equipment_id' => $laptop->getKey(),
@@ -930,6 +945,7 @@ class BorrowingResourceTest extends TestCase
                     ],
                 ],
             ])
+            ->callMountedAction()
             ->assertHasNoFormErrors()
             ->assertNotified('Devolución registrada');
 
@@ -950,6 +966,7 @@ class BorrowingResourceTest extends TestCase
         $this->assertNotNull($incident->photo);
         $this->assertStringStartsWith('borrowings/incidents/', $incident->photo);
         Storage::disk($disk)->assertExists($incident->photo);
+        Storage::disk('public')->assertMissing($incident->photo);
     }
 
     /**
@@ -1180,17 +1197,19 @@ class BorrowingResourceTest extends TestCase
 
     /**
      * Eliminar el perfil o el usuario registrador desvincula las llaves foráneas anulables
-     * conservando el préstamo y el DNI, mientras que eliminar el equipo borra en cascada.
+     * conservando el préstamo y el DNI, mientras que eliminar un equipo con préstamos históricos
+     * (Devuelto) borra esos registros en cascada.
      */
     public function test_deleting_profile_or_registering_user_unlinks_borrowing_while_deleting_equipment_cascades(): void
     {
         $profile = Profile::factory()->create(['dni' => '78889999']);
-        $equipment = Equipment::factory()->ofType('Computadora')->create();
+        $equipment = Equipment::factory()->ofType('Computadora')->withStatus('Disponible')->create();
         $registrar = User::factory()->create();
         $borrowing = Borrowing::factory()
             ->for($equipment)
             ->for($profile)
             ->for($registrar, 'registeredBy')
+            ->returned()
             ->create();
 
         $this->assertTrue($borrowing->equipment->is($equipment));
@@ -1209,6 +1228,255 @@ class BorrowingResourceTest extends TestCase
         $equipment->delete();
 
         $this->assertModelMissing($borrowing);
+    }
+
+    /**
+     * Un usuario sin ViewAny_Borrowing no debe disparar la actualización automática de préstamos
+     * vencidos al intentar acceder a ListBorrowings.
+     */
+    public function test_unauthorized_user_visiting_list_borrowings_does_not_trigger_overdue_updates(): void
+    {
+        $this->travelTo('2026-11-23 14:00:00');
+        $expiredBorrowing = Borrowing::factory()->create([
+            'status' => Borrowing::STATUS_IN_PROGRESS,
+            'borrowing_date' => '2026-11-23 10:00:00',
+            'due_date' => '2026-11-23 12:00:00',
+        ]);
+        $this->signInWithPermissions();
+
+        $this->get(BorrowingResource::getUrl('index'))->assertForbidden();
+
+        $this->assertSame(Borrowing::STATUS_IN_PROGRESS, $expiredBorrowing->fresh()->status);
+    }
+
+    /**
+     * El selector de dispositivos adicionales muestra el código patrimonial junto con marca y modelo
+     * para distinguir unidades idénticas.
+     */
+    public function test_additional_equipment_selector_includes_patrimonial_code_to_distinguish_identical_models(): void
+    {
+        $first = Equipment::factory()->ofType('Periférico')->withStatus('Disponible')->create([
+            'patrimonial_code' => 'UCH-PER-101',
+            'brand' => 'Logitech',
+            'model' => 'M185',
+        ]);
+        $second = Equipment::factory()->ofType('Periférico')->withStatus('Disponible')->create([
+            'patrimonial_code' => 'UCH-PER-102',
+            'brand' => 'Logitech',
+            'model' => 'M185',
+        ]);
+        $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
+
+        $component = Livewire::test(CreateBorrowing::class);
+        $select = $component->instance()->form->getComponentByStatePath('additional_equipment_ids', withHidden: true);
+
+        $this->assertInstanceOf(Select::class, $select);
+        $options = $select->getOptions();
+
+        $this->assertSame('[UCH-PER-101] Logitech M185', $options[$first->getKey()] ?? null);
+        $this->assertSame('[UCH-PER-102] Logitech M185', $options[$second->getKey()] ?? null);
+    }
+
+    /**
+     * EditBorrowing revalida el tipo del equipo principal bajo bloqueo: rechaza si cambió a
+     * Periférico/Otro y recalcula due_date a null si cambió a Laptop.
+     */
+    public function test_edit_borrowing_revalidates_locked_equipment_type_and_recalculates_due_date(): void
+    {
+        $computer = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
+        $reclassifiedToPeripheral = Equipment::factory()->ofType('Periférico')->withStatus('Disponible')->create();
+        $reclassifiedToLaptop = Equipment::factory()->ofType('Laptop')->withStatus('Disponible')->create();
+        $borrowing = Borrowing::factory()->for($computer)->create([
+            'status' => Borrowing::STATUS_IN_PROGRESS,
+            'borrowing_date' => '2026-11-23 09:00:00',
+            'due_date' => '2026-11-23 11:00:00',
+        ]);
+
+        $page = new class extends EditBorrowing
+        {
+            /**
+             * @param  array<string, mixed>  $data
+             */
+            public function executeRecordUpdate(Borrowing $record, array $data): Borrowing
+            {
+                /** @var Borrowing $updated */
+                $updated = $this->handleRecordUpdate($record, $data);
+
+                return $updated;
+            }
+        };
+
+        try {
+            $page->executeRecordUpdate($borrowing, [
+                'equipment_id' => $reclassifiedToPeripheral->getKey(),
+                'borrowing_date' => '2026-11-23 09:00:00',
+                'due_date' => '2026-11-23 11:00:00',
+            ]);
+            $this->fail('Se esperaba ValidationException cuando el equipo principal bloqueado ya no es Computadora ni Laptop.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('data.equipment_id', $exception->errors());
+        }
+
+        $updated = $page->executeRecordUpdate($borrowing, [
+            'equipment_id' => $reclassifiedToLaptop->getKey(),
+            'borrowing_date' => '2026-11-23 09:00:00',
+            'due_date' => '2026-11-23 11:00:00',
+        ]);
+
+        $this->assertSame($reclassifiedToLaptop->getKey(), $updated->equipment_id);
+        $this->assertNull($updated->due_date);
+        $this->assertSame('Disponible', $computer->fresh()->status);
+        $this->assertSame('Prestado', $reclassifiedToLaptop->fresh()->status);
+    }
+
+    /**
+     * EquipmentIncident::photoDisk nunca usa el disco público y la carga de fotos en devoluciones
+     * impide manipular rutas de archivos existentes en el disco (anti-IDOR).
+     */
+    public function test_return_photo_upload_uses_private_non_public_disk_and_prevents_path_tampering(): void
+    {
+        config(['filament.default_filesystem_disk' => 'public']);
+        $this->assertSame('local', EquipmentIncident::photoDisk());
+
+        $disk = EquipmentIncident::photoDisk();
+        Storage::fake($disk);
+        Storage::disk($disk)->put(
+            'profiles/photos/archivo-ajeno.jpg',
+            UploadedFile::fake()->image('archivo-ajeno.jpg', 100, 100)->getContent(),
+        );
+
+        $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
+        $borrowing = Borrowing::factory()->for($laptop)->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+        $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
+
+        Livewire::test(ListBorrowings::class)
+            ->callAction(TestAction::make('registerReturn')->table($borrowing), [
+                'items' => [
+                    [
+                        'equipment_id' => $laptop->getKey(),
+                        'has_damage' => true,
+                        'description' => 'Intento de inyectar ruta ajena.',
+                        'photo' => ['profiles/photos/archivo-ajeno.jpg'],
+                    ],
+                ],
+            ])
+            ->assertHasFormErrors(['items.0.photo']);
+
+        $this->assertDatabaseCount('equipment_incidents', 0);
+        $this->assertSame(Borrowing::STATUS_IN_PROGRESS, $borrowing->fresh()->status);
+    }
+
+    /**
+     * BorrowingReturnService exige que todos los dispositivos del préstamo sean evaluados
+     * y cuenta únicamente los equipos cuyo estado cambió efectivamente a Disponible.
+     */
+    public function test_return_service_requires_all_devices_and_counts_only_actually_released_equipment(): void
+    {
+        $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Mantenimiento')->create();
+        $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
+        $borrowing = Borrowing::factory()
+            ->for($laptop)
+            ->withAdditionalEquipment($mouse)
+            ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+
+        $service = app(BorrowingReturnService::class);
+
+        try {
+            $service->registerReturn($borrowing, [
+                ['equipment_id' => $laptop->getKey(), 'has_damage' => false],
+            ]);
+            $this->fail('Se esperaba ValidationException al omitir un dispositivo del préstamo.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('borrowing', $exception->errors());
+        }
+
+        $result = $service->registerReturn($borrowing, [
+            ['equipment_id' => $laptop->getKey(), 'has_damage' => false],
+            ['equipment_id' => $mouse->getKey(), 'has_damage' => false],
+        ]);
+
+        $this->assertSame(1, $result['released_count']);
+        $this->assertSame(0, $result['maintenance_count']);
+        $this->assertSame('Mantenimiento', $laptop->fresh()->status);
+        $this->assertSame('Disponible', $mouse->fresh()->status);
+    }
+
+    /**
+     * Si otro operador modifica los dispositivos del préstamo mientras el modal de devolución
+     * está abierto, la acción muestra un aviso visible y elimina cualquier foto huérfana cargada.
+     */
+    public function test_return_action_notifies_operator_and_cleans_up_orphaned_photo_when_devices_change_concurrently(): void
+    {
+        $disk = EquipmentIncident::photoDisk();
+        Storage::fake($disk);
+
+        $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
+        $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
+        $borrowing = Borrowing::factory()
+            ->for($laptop)
+            ->withAdditionalEquipment($mouse)
+            ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+        $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
+
+        $action = TestAction::make('registerReturn')->table($borrowing);
+        $component = Livewire::test(ListBorrowings::class)
+            ->mountAction($action)
+            ->fillForm([
+                'items' => [
+                    [
+                        'equipment_id' => $laptop->getKey(),
+                        'has_damage' => false,
+                    ],
+                    [
+                        'equipment_id' => $mouse->getKey(),
+                        'has_damage' => true,
+                        'description' => 'Cable dañado.',
+                        'photo' => [UploadedFile::fake()->image('evidencia-huerfana.jpg', 300, 200)],
+                    ],
+                ],
+            ]);
+
+        // Otra sesión quita el mouse del préstamo antes de confirmar el modal
+        $borrowing->additionalEquipment()->detach($mouse->getKey());
+
+        $component
+            ->callMountedAction()
+            ->assertNotified('No se pudo registrar la devolución');
+
+        $this->assertSame(Borrowing::STATUS_IN_PROGRESS, $borrowing->fresh()->status);
+        $this->assertDatabaseCount('equipment_incidents', 0);
+        $this->assertSame([], Storage::disk($disk)->allFiles('borrowings/incidents'));
+    }
+
+    /**
+     * EquipmentIncidentFactory asocia el incidente con un equipo que pertenece al préstamo generado.
+     */
+    public function test_equipment_incident_factory_associates_an_equipment_from_the_generated_borrowing(): void
+    {
+        $incident = EquipmentIncident::factory()->create();
+
+        $this->assertContains($incident->equipment_id, $incident->borrowing->allEquipmentIds());
+    }
+
+    /**
+     * No se permite eliminar directamente un equipo (ni principal ni adicional) mientras posea
+     * un préstamo activo, evitando dejar dispositivos adicionales huérfanos en estado Prestado.
+     */
+    public function test_deleting_equipment_with_active_borrowing_is_blocked_at_model_level(): void
+    {
+        $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
+        $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
+        $borrowing = Borrowing::factory()
+            ->for($laptop)
+            ->withAdditionalEquipment($mouse)
+            ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+
+        $this->assertFalse($laptop->delete());
+        $this->assertFalse($mouse->delete());
+        $this->assertModelExists($laptop);
+        $this->assertModelExists($mouse);
+        $this->assertModelExists($borrowing);
+        $this->assertSame('Prestado', $mouse->fresh()->status);
     }
 
     /**

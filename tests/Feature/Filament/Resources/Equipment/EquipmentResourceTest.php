@@ -6,6 +6,7 @@ use App\Filament\Resources\Equipment\EquipmentResource;
 use App\Filament\Resources\Equipment\Pages\CreateEquipment;
 use App\Filament\Resources\Equipment\Pages\EditEquipment;
 use App\Filament\Resources\Equipment\Pages\ListEquipments;
+use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Models\Permission;
 use App\Models\Role;
@@ -410,6 +411,42 @@ class EquipmentResourceTest extends TestCase
         }
 
         $this->assertModelExists($toKeep);
+    }
+
+    /**
+     * Ni la acción de eliminación individual ni la masiva en EquipmentTable permiten eliminar
+     * equipos asociados a un préstamo activo (como equipo principal o dispositivo adicional).
+     */
+    public function test_delete_and_bulk_delete_actions_block_equipment_with_active_borrowings(): void
+    {
+        $primary = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
+        $additional = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
+        $freeEquipment = Equipment::factory()->ofType('Otro')->withStatus('Disponible')->create();
+
+        $borrowing = Borrowing::factory()
+            ->for($primary)
+            ->withAdditionalEquipment($additional)
+            ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+
+        $this->signInWithPermissions('ViewAny_Equipment', 'Delete_Equipment', 'DeleteAny_Equipment');
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make(DeleteAction::class)->table($primary))
+            ->assertNotified('No se puede eliminar el equipo');
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make(DeleteAction::class)->table($additional))
+            ->assertNotified('No se puede eliminar el equipo');
+
+        Livewire::test(ListEquipments::class)
+            ->selectTableRecords([$primary, $freeEquipment])
+            ->callAction(TestAction::make(DeleteBulkAction::class)->table()->bulk())
+            ->assertNotified('No se pueden eliminar los equipos seleccionados');
+
+        $this->assertModelExists($primary);
+        $this->assertModelExists($additional);
+        $this->assertModelExists($freeEquipment);
+        $this->assertModelExists($borrowing);
     }
 
     /**

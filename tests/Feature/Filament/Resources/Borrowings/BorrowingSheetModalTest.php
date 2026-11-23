@@ -120,6 +120,7 @@ class BorrowingSheetModalTest extends TestCase
             ->assertMountedActionModalSeeHtml([
                 'lightbox-thumb-btn',
                 'x-teleport="body"',
+                'x-trap="open"',
                 'borrowings/incidents/mouse-danado.jpg?expiration=',
             ]);
 

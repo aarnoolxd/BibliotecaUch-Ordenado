@@ -81,5 +81,12 @@ class DatabaseSeederTest extends TestCase
         $this->assertSame(6, Borrowing::query()->count());
         $this->assertSame(4, DB::table('borrowing_equipment')->count());
         $this->assertSame(1, EquipmentIncident::query()->count());
+
+        // Verifica idempotencia incluso después de que un préstamo En curso pase a Vencido
+        $computerBorrowing->update(['status' => Borrowing::STATUS_OVERDUE]);
+        $this->seed(DatabaseSeeder::class);
+
+        $this->assertSame(6, Borrowing::query()->count());
+        $this->assertSame(4, DB::table('borrowing_equipment')->count());
     }
 }
