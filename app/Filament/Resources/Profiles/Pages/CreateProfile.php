@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Profiles\Pages;
 
+use App\Filament\Resources\CreateRecord;
 use App\Filament\Resources\Profiles\ProfileResource;
 use Filament\Actions\Action;
-use Filament\Resources\Pages\CreateRecord;
 
 class CreateProfile extends CreateRecord
 {
