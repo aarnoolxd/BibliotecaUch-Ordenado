@@ -17,9 +17,12 @@ class DatabaseSeeder extends Seeder
         // Llama al seeder de roles que son los del sistema
         $this->call(RoleSeeder::class);
 
-        // Verifica si el entorno es local o testing y realiza el seeder correspondiente
+        // Verifica si el entorno es local o testing y realiza los seeders correspondientes
         if (app()->environment('local', 'testing')) {
-            $this->call(DevUsersSeeder::class);
+            $this->call([
+                DevUsersSeeder::class,
+                ProfileSeeder::class,
+            ]);
         }
     }
 }

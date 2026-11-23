@@ -45,7 +45,6 @@ class UsersTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    // All bulk actions will be placed here
                 ]),
             ]);
     }
