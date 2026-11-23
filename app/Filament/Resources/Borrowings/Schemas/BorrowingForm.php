@@ -63,6 +63,11 @@ class BorrowingForm
                     ->label('Estudiante Identificado')
                     ->disabled()
                     ->dehydrated(false)
+                    ->afterStateHydrated(function (TextInput $component, ?Borrowing $record): void {
+                        if ($record?->profile !== null) {
+                            $component->state($record->profile->full_name);
+                        }
+                    })
                     ->placeholder('Se completará automáticamente al ingresar un DNI válido')
                     ->helperText('Nombre del estudiante obtenido a partir del DNI ingresado.'),
 
@@ -153,8 +158,12 @@ class BorrowingForm
                 DateTimePicker::make('due_date')
                     ->label('Fecha Límite de Devolución')
                     ->required()
+                    ->afterOrEqual('borrowing_date')
                     ->native(false)
                     ->readOnly(fn (string $operation): bool => $operation === 'create')
+                    ->validationMessages([
+                        'after_or_equal' => 'La fecha límite de devolución no puede ser anterior a la fecha del préstamo.',
+                    ])
                     ->helperText('Calculada automáticamente según el tipo de recurso seleccionado.'),
 
                 TextInput::make('status')

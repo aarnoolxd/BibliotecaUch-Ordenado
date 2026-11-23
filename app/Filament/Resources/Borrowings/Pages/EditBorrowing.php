@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Borrowings\Pages;
 use App\Filament\Resources\Borrowings\BorrowingResource;
 use App\Models\Borrowing;
 use App\Models\Equipment;
+use App\Models\Profile;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
@@ -22,6 +23,37 @@ class EditBorrowing extends EditRecord
             ViewAction::make(),
             DeleteAction::make(),
         ];
+    }
+
+    /**
+     * Sincroniza profile_id a partir del student_dni enviado al editar el préstamo,
+     * sin depender de eventos reactivos del cliente.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $dni = trim((string) ($data['student_dni'] ?? ''));
+        $profile = Profile::query()->where('dni', $dni)->first();
+
+        if ($profile === null) {
+            Notification::make()
+                ->danger()
+                ->title('DNI no encontrado')
+                ->body('El DNI ingresado no existe en el sistema. Debe registrar previamente el perfil del estudiante.')
+                ->persistent()
+                ->send();
+
+            throw ValidationException::withMessages([
+                'data.student_dni' => 'El DNI ingresado no existe en el sistema.',
+            ]);
+        }
+
+        $data['student_dni'] = $profile->dni;
+        $data['profile_id'] = $profile->getKey();
+
+        return $data;
     }
 
     /**
