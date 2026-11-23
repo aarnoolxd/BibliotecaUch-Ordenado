@@ -47,7 +47,7 @@ class BorrowingTable
                 TextColumn::make('profile.full_name')
                     ->label('Estudiante')
                     ->searchable(query: function (Builder $query, string $search): Builder {
-                        $term = '%'.mb_strtolower(trim($search)).'%';
+                        $term = '%' . mb_strtolower(trim($search)) . '%';
 
                         return $query->whereHas('profile', function (Builder $profileQuery) use ($term): void {
                             $profileQuery->whereRaw(
@@ -64,7 +64,7 @@ class BorrowingTable
                             ->orderBy('profiles.maternal_last_name', $direction)
                             ->select('borrowings.*');
                     })
-                    ->default(fn (Borrowing $record): string => $record->profile?->full_name ?? 'Estudiante no vinculado')
+                    ->default(fn(Borrowing $record): string => $record->profile?->full_name ?? 'Estudiante no vinculado')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('equipment.patrimonial_code')
@@ -81,8 +81,8 @@ class BorrowingTable
 
                 TextColumn::make('additional_equipment_labels')
                     ->label('Periféricos / Otros')
-                    ->state(fn (Borrowing $record): array => $record->additionalEquipment
-                        ->map(fn (Equipment $item): string => "{$item->model}")
+                    ->state(fn(Borrowing $record): array => $record->additionalEquipment
+                        ->map(fn(Equipment $item): string => "{$item->model}")
                         ->all())
                     ->badge()
                     ->color('gray')
@@ -90,7 +90,7 @@ class BorrowingTable
                     ->expandableLimitedList()
                     ->placeholder('Sin periféricos')
                     ->searchable(query: function (Builder $query, string $search): Builder {
-                        $term = '%'.mb_strtolower(trim($search)).'%';
+                        $term = '%' . mb_strtolower(trim($search)) . '%';
 
                         return $query->whereHas('additionalEquipment', function (Builder $equipmentQuery) use ($term): void {
                             $equipmentQuery->whereRaw(
@@ -122,7 +122,7 @@ class BorrowingTable
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn (string $state): string|array => Borrowing::statusColor($state)),
+                    ->color(fn(string $state): string|array => Borrowing::statusColor($state)),
 
                 TextColumn::make('observations')
                     ->label('Observaciones')
@@ -131,7 +131,7 @@ class BorrowingTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('created_at', 'desc')
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['equipment', 'additionalEquipment', 'profile', 'registeredBy', 'incidents.equipment']))
+            ->modifyQueryUsing(fn(Builder $query): Builder => $query->with(['equipment', 'additionalEquipment', 'profile', 'registeredBy', 'incidents.equipment']))
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado del préstamo')
@@ -150,12 +150,12 @@ class BorrowingTable
                     ->falseLabel('Sin incidencias')
                     ->native(false)
                     ->queries(
-                        true: fn (Builder $query): Builder => $query->whereHas('incidents'),
-                        false: fn (Builder $query): Builder => $query->whereDoesntHave('incidents'),
+                        true: fn(Builder $query): Builder => $query->whereHas('incidents'),
+                        false: fn(Builder $query): Builder => $query->whereDoesntHave('incidents'),
                     ),
             ], layout: FiltersLayout::Modal)
             ->filtersTriggerAction(
-                fn (Action $action): Action => $action
+                fn(Action $action): Action => $action
                     ->slideOver()
                     ->modalCancelAction(false),
             )
@@ -165,13 +165,13 @@ class BorrowingTable
                         ->label('Devolución')
                         ->icon(Heroicon::OutlinedArrowUturnLeft)
                         ->color('success')
-                        ->visible(fn (Borrowing $record): bool => in_array($record->status, Borrowing::ACTIVE_STATUSES, true))
+                        ->visible(fn(Borrowing $record): bool => in_array($record->status, Borrowing::ACTIVE_STATUSES, true))
                         ->authorize('registerReturn')
                         ->modalHeading('Registrar devolución del préstamo')
-                        ->modalDescription('Indique si alguno de los dispositivos entregados presenta daños. Los equipos sin daños volverán a estar disponibles automáticamente.')
+                        ->modalDescription('Indique si alguno de los dispositivos entregados presenta daños.')
                         ->modalWidth(Width::ThreeExtraLarge)
                         ->modalSubmitActionLabel('Confirmar Devolución')
-                        ->fillForm(fn (Borrowing $record): array => [
+                        ->fillForm(fn(Borrowing $record): array => [
                             'items' => self::buildReturnItems($record),
                         ])
                         ->schema([
@@ -180,7 +180,7 @@ class BorrowingTable
                                 ->addable(false)
                                 ->deletable(false)
                                 ->reorderable(false)
-                                ->itemLabel(fn (array $state): ?string => $state['equipment_label'] ?? null)
+                                ->itemLabel(fn(array $state): ?string => $state['equipment_label'] ?? null)
                                 ->schema([
                                     Hidden::make('equipment_id')
                                         ->required(),
@@ -195,8 +195,8 @@ class BorrowingTable
                                         ->placeholder('Describa el daño o falla detectada al recibir el dispositivo...')
                                         ->rows(2)
                                         ->maxLength(500)
-                                        ->visible(fn (Get $get): bool => (bool) $get('has_damage'))
-                                        ->required(fn (Get $get): bool => (bool) $get('has_damage'))
+                                        ->visible(fn(Get $get): bool => (bool)$get('has_damage'))
+                                        ->required(fn(Get $get): bool => (bool)$get('has_damage'))
                                         ->validationMessages([
                                             'required' => 'Debe describir el daño detectado en el recurso.',
                                             'max' => 'El detalle del daño no puede superar los 500 caracteres.',
@@ -204,15 +204,15 @@ class BorrowingTable
                                     FileUpload::make('photo')
                                         ->label('Fotografía de evidencia')
                                         ->helperText('Adjunte una fotografía en formato JPG o PNG (máx. 4 MB) que evidencie el daño.')
-                                        ->disk(fn (): string => EquipmentIncident::photoDisk())
+                                        ->disk(fn(): string => EquipmentIncident::photoDisk())
                                         ->visibility('private')
                                         ->image()
                                         ->acceptedFileTypes(['image/jpeg', 'image/png'])
                                         ->maxSize(4096)
                                         ->directory('borrowings/incidents')
                                         ->preventFilePathTampering()
-                                        ->visible(fn (Get $get): bool => (bool) $get('has_damage'))
-                                        ->required(fn (Get $get): bool => (bool) $get('has_damage'))
+                                        ->visible(fn(Get $get): bool => (bool)$get('has_damage'))
+                                        ->required(fn(Get $get): bool => (bool)$get('has_damage'))
                                         ->validationMessages([
                                             'required' => 'Debe adjuntar una fotografía de evidencia del daño.',
                                             'image' => 'El archivo debe ser una imagen válida.',
@@ -236,13 +236,13 @@ class BorrowingTable
                                 $errors = $exception->errors();
                                 $hasEquipmentMismatch = array_key_exists('borrowing', $errors)
                                     || collect(array_keys($errors))->contains(
-                                        fn (string $key): bool => Str::is('items.*.equipment_id', $key),
+                                        fn(string $key): bool => Str::is('items.*.equipment_id', $key),
                                     );
 
                                 $body = match (true) {
-                                    array_key_exists('borrowing', $errors) => (string) ($errors['borrowing'][0] ?? 'Los equipos del préstamo cambiaron. Reabra la ficha y revise los equipos actuales.'),
+                                    array_key_exists('borrowing', $errors) => (string)($errors['borrowing'][0] ?? 'Los equipos del préstamo cambiaron. Reabra la ficha y revise los equipos actuales.'),
                                     $hasEquipmentMismatch => 'Los equipos del préstamo cambiaron mientras el formulario estaba abierto. Reabra la ficha para revisar los equipos actuales y vuelva a intentarlo.',
-                                    default => (string) (collect($errors)->flatten()->first() ?? 'No se pudo validar la devolución. Revise los datos e inténtelo nuevamente.'),
+                                    default => (string)(collect($errors)->flatten()->first() ?? 'No se pudo validar la devolución. Revise los datos e inténtelo nuevamente.'),
                                 };
 
                                 Notification::make()
@@ -279,7 +279,7 @@ class BorrowingTable
                         }),
                     BorrowingResource::borrowingDetailsAction(),
                     EditAction::make()
-                        ->visible(fn (Borrowing $record): bool => $record->status === Borrowing::STATUS_IN_PROGRESS),
+                        ->visible(fn(Borrowing $record): bool => $record->status === Borrowing::STATUS_IN_PROGRESS),
                 ])
                     ->label('Acciones')
                     ->icon(Heroicon::OutlinedEllipsisVertical)
@@ -305,7 +305,7 @@ class BorrowingTable
 
         if ($record->equipment !== null) {
             $items[] = [
-                'equipment_id' => (int) $record->equipment->getKey(),
+                'equipment_id' => (int)$record->equipment->getKey(),
                 'equipment_label' => "[{$record->equipment->patrimonial_code}] {$record->equipment->brand} {$record->equipment->model}",
                 'has_damage' => false,
                 'description' => null,
@@ -315,7 +315,7 @@ class BorrowingTable
 
         foreach ($record->additionalEquipment as $additional) {
             $items[] = [
-                'equipment_id' => (int) $additional->getKey(),
+                'equipment_id' => (int)$additional->getKey(),
                 'equipment_label' => "[{$additional->patrimonial_code}] {$additional->brand} {$additional->model}",
                 'has_damage' => false,
                 'description' => null,
@@ -329,7 +329,7 @@ class BorrowingTable
     /**
      * Extrae las rutas de fotografías subidas en el formulario de devolución.
      *
-     * @param  array<int, array<string, mixed>>  $items
+     * @param array<int, array<string, mixed>> $items
      * @return list<string>
      */
     private static function extractUploadedPhotoPaths(array $items): array
@@ -351,7 +351,7 @@ class BorrowingTable
      * Elimina fotografías recién cargadas solo cuando se confirma en base de datos
      * que no pertenecen a ninguna incidencia persistida.
      *
-     * @param  list<string>  $paths
+     * @param list<string> $paths
      */
     private static function cleanupUnreferencedPhotos(array $paths): void
     {
