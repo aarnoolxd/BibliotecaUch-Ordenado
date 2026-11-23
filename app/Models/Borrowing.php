@@ -72,12 +72,18 @@ class Borrowing extends Model
             $equipmentIds = $borrowing->equipmentIdsPendingRelease;
             $borrowing->equipmentIdsPendingRelease = [];
 
-            DB::transaction(function () use ($equipmentIds): void {
-                foreach ($equipmentIds as $equipmentId) {
-                    self::releaseEquipmentIfNoActiveBorrowings($equipmentId);
-                }
-            });
+            foreach ($equipmentIds as $equipmentId) {
+                self::releaseEquipmentIfNoActiveBorrowings($equipmentId);
+            }
         });
+    }
+
+    /**
+     * Ejecuta el borrado del préstamo y la liberación de sus equipos dentro de una única transacción.
+     */
+    public function delete(): ?bool
+    {
+        return DB::transaction(fn (): ?bool => parent::delete());
     }
 
     /**
