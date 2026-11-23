@@ -22,6 +22,8 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -1460,22 +1462,42 @@ class BorrowingResourceTest extends TestCase
 
     /**
      * No se permite eliminar directamente un equipo (ni principal ni adicional) mientras posea
-     * un préstamo activo, evitando dejar dispositivos adicionales huérfanos en estado Prestado.
+     * un préstamo activo, ejecutando la verificación y el borrado dentro de una transacción con
+     * bloqueo de fila incluso si la instancia en memoria tenía relaciones obsoletas.
      */
     public function test_deleting_equipment_with_active_borrowing_is_blocked_at_model_level(): void
     {
-        $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
-        $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
+        $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Disponible')->create();
+        $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Disponible')->create();
+        $freeEquipment = Equipment::factory()->ofType('Otro')->withStatus('Disponible')->create();
+
+        // Precarga relaciones vacías antes de una asignación concurrente
+        $laptop->load(['borrowings', 'additionalBorrowings']);
+        $mouse->load(['borrowings', 'additionalBorrowings']);
+
         $borrowing = Borrowing::factory()
             ->for($laptop)
             ->withAdditionalEquipment($mouse)
             ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+        $laptop->update(['status' => 'Prestado']);
+        $mouse->update(['status' => 'Prestado']);
+
+        $levelBeforeDelete = DB::transactionLevel();
+        $levelDuringDeleting = null;
+
+        Event::listen('eloquent.deleting: '.Equipment::class, function () use (&$levelDuringDeleting): void {
+            $levelDuringDeleting = DB::transactionLevel();
+        });
 
         $this->assertFalse($laptop->delete());
         $this->assertFalse($mouse->delete());
+        $this->assertTrue($freeEquipment->delete());
+
+        $this->assertSame($levelBeforeDelete + 1, $levelDuringDeleting);
         $this->assertModelExists($laptop);
         $this->assertModelExists($mouse);
         $this->assertModelExists($borrowing);
+        $this->assertModelMissing($freeEquipment);
         $this->assertSame('Prestado', $mouse->fresh()->status);
     }
 

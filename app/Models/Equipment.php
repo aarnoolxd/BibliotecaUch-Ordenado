@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 #[Fillable(['patrimonial_code', 'type', 'brand', 'model', 'serial_number', 'status', 'observations'])]
 class Equipment extends Model
@@ -41,7 +42,26 @@ class Equipment extends Model
 
     protected static function booted(): void
     {
-        static::deleting(fn (Equipment $equipment): bool => ! $equipment->hasActiveBorrowing());
+        static::deleting(function (Equipment $equipment): ?bool {
+            $lockedEquipment = self::query()
+                ->lockForUpdate()
+                ->find($equipment->getKey());
+
+            if ($lockedEquipment === null || $lockedEquipment->hasActiveBorrowing()) {
+                return false;
+            }
+
+            return null;
+        });
+    }
+
+    /**
+     * Ejecuta el borrado del equipo dentro de una única transacción junto con el bloqueo
+     * de fila en deleting para impedir asignaciones concurrentes antes del DELETE.
+     */
+    public function delete(): ?bool
+    {
+        return DB::transaction(fn (): ?bool => parent::delete());
     }
 
     /**
