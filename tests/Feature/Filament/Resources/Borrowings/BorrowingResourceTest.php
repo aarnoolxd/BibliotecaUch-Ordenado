@@ -921,7 +921,11 @@ class BorrowingResourceTest extends TestCase
         $damagePhoto = UploadedFile::fake()->image('mouse-roto.jpg', 400, 300);
 
         $mountedReturn = Livewire::test(ListBorrowings::class)
-            ->mountAction(TestAction::make('registerReturn')->table($borrowing));
+            ->mountAction(TestAction::make('registerReturn')->table($borrowing))
+            ->assertMountedActionModalSee([
+                "Equipo principal — [{$laptop->patrimonial_code}] {$laptop->brand} {$laptop->model} ({$laptop->type})",
+                "Adicional — [{$mouse->patrimonial_code}] {$mouse->brand} {$mouse->model} ({$mouse->type})",
+            ]);
 
         $livewireInstance = $mountedReturn->instance();
         $mountedSchema = $livewireInstance->getSchema($livewireInstance->getMountedActionSchemaName());

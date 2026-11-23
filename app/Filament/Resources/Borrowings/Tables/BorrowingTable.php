@@ -184,8 +184,7 @@ class BorrowingTable
                                 ->schema([
                                     Hidden::make('equipment_id')
                                         ->required(),
-                                    Hidden::make('equipment_label')
-                                        ->dehydrated(false),
+                                    Hidden::make('equipment_label'),
                                     Toggle::make('has_damage')
                                         ->label('¿Presenta daños?')
                                         ->helperText('Active esta opción únicamente si el dispositivo presenta daños o fallas al ser devuelto.')
