@@ -14,6 +14,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
+use Filament\Tables\Columns\ImageColumn;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Gate;
@@ -335,6 +336,36 @@ class ProfileResourceTest extends TestCase
         $this->assertIsArray($uploadedFile);
         $this->assertIsString($uploadedFile['url']);
         $this->assertStringContainsString('profiles/photos/avatar.jpg?expiration=', $uploadedFile['url']);
+    }
+
+    /**
+     * La columna de fotografía de la tabla de perfiles resuelve las imágenes privadas desde el disco
+     * configurado con URLs temporales firmadas y muestra la imagen por defecto cuando no hay foto.
+     */
+    public function test_profiles_table_resolves_private_profile_photos_with_temporary_urls_and_default_fallback(): void
+    {
+        $disk = config('filament.default_filesystem_disk');
+        Storage::fake($disk);
+        Storage::disk($disk)->put(
+            'profiles/photos/tabla.jpg',
+            UploadedFile::fake()->image('tabla.jpg', 100, 100)->getContent(),
+        );
+        $profileWithPhoto = Profile::factory()->withPhoto('profiles/photos/tabla.jpg')->create();
+        Profile::factory()->create(['photo' => null]);
+        $this->signInWithPermissions('ViewAny_Profile');
+
+        $component = Livewire::test(ListProfiles::class);
+        $photoColumn = $component->instance()->getTable()->getColumn('photo');
+
+        $this->assertInstanceOf(ImageColumn::class, $photoColumn);
+        $this->assertSame($disk, $photoColumn->getDiskName());
+        $this->assertSame('private', $photoColumn->getVisibility());
+
+        $resolvedUrl = $photoColumn->getImageUrl($profileWithPhoto->photo);
+
+        $this->assertIsString($resolvedUrl);
+        $this->assertStringContainsString('profiles/photos/tabla.jpg?expiration=', $resolvedUrl);
+        $this->assertSame(asset('images/banner.svg'), $photoColumn->getDefaultImageUrl());
     }
 
     /**
