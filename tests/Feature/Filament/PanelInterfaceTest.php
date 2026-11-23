@@ -8,6 +8,7 @@ use App\Filament\Widgets\EquipmentStatusChart;
 use App\Filament\Widgets\EquipmentTotalOverview;
 use App\Models\Equipment;
 use App\Models\Permission;
+use App\Models\Profile;
 use App\Models\Role;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
@@ -16,6 +17,7 @@ use Filament\Pages\Dashboard;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -146,6 +148,61 @@ class PanelInterfaceTest extends TestCase
             ->assertSet('data.brand', null)
             ->assertSet('data.model', null)
             ->assertNotified('Campos limpiados exitosamente');
+    }
+
+    /**
+     * Un usuario con fotografía en su perfil expone una URL temporal firmada desde el disco
+     * privado por defecto de Filament y el panel la renderiza al ingresar.
+     */
+    public function test_authenticated_user_with_profile_photo_renders_private_temporary_avatar_url_in_panel(): void
+    {
+        $this->travelTo('2026-11-23 14:15:00');
+        $disk = config('filament.default_filesystem_disk');
+        Storage::fake($disk);
+
+        $user = $this->signInWithPermissions();
+        Profile::factory()->for($user)->withPhoto('profiles/photos/usuario.jpg')->create();
+
+        $avatarUrl = $user->getFilamentAvatarUrl();
+
+        $this->assertIsString($avatarUrl);
+        $this->assertStringContainsString('profiles/photos/usuario.jpg?expiration=', $avatarUrl);
+        $this->assertSame($avatarUrl, Filament::getUserAvatarUrl($user));
+
+        $this->get('/admin')
+            ->assertOk()
+            ->assertSee($avatarUrl);
+    }
+
+    /**
+     * Un usuario sin perfil o con fotografía vacía devuelve null como URL de avatar personalizado
+     * para que Filament utilice el avatar por defecto.
+     */
+    public function test_user_without_profile_or_with_blank_photo_returns_null_filament_avatar_url(): void
+    {
+        Storage::fake(config('filament.default_filesystem_disk'));
+
+        $userWithoutProfile = User::factory()->create();
+        $userWithBlankPhoto = User::factory()->create();
+        Profile::factory()->for($userWithBlankPhoto)->create(['photo' => '   ']);
+
+        $this->assertNull($userWithoutProfile->getFilamentAvatarUrl());
+        $this->assertNull($userWithBlankPhoto->getFilamentAvatarUrl());
+    }
+
+    /**
+     * Si el disco por defecto de Filament se configura como public, el avatar utiliza
+     * la URL pública estándar en lugar de intentar firmar una URL temporal.
+     */
+    public function test_user_avatar_falls_back_to_public_url_when_filament_disk_is_public(): void
+    {
+        config(['filament.default_filesystem_disk' => 'public']);
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        Profile::factory()->for($user)->withPhoto('profiles/photos/usuario.jpg')->create();
+
+        $this->assertSame('/storage/profiles/photos/usuario.jpg', $user->getFilamentAvatarUrl());
     }
 
     /**
