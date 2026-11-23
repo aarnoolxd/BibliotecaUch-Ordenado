@@ -123,15 +123,16 @@ class Borrowing extends Model
     /**
      * Devuelve el equipo a estado Disponible si está Prestado y no tiene
      * ningún otro préstamo activo (ni como equipo principal ni como dispositivo adicional).
+     * Retorna true únicamente cuando el estado del equipo cambia efectivamente a Disponible.
      */
-    public static function releaseEquipmentIfNoActiveBorrowings(int $equipmentId, ?int $ignoreBorrowingId = null): void
+    public static function releaseEquipmentIfNoActiveBorrowings(int $equipmentId, ?int $ignoreBorrowingId = null): bool
     {
         $equipment = Equipment::query()
             ->lockForUpdate()
             ->find($equipmentId);
 
         if ($equipment === null || $equipment->status !== 'Prestado') {
-            return;
+            return false;
         }
 
         $hasOtherActiveBorrowing = self::query()
@@ -151,8 +152,10 @@ class Borrowing extends Model
             ->exists();
 
         if (! $hasOtherActiveBorrowing) {
-            $equipment->update(['status' => 'Disponible']);
+            return $equipment->update(['status' => 'Disponible']);
         }
+
+        return false;
     }
 
     /**

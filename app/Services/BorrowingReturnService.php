@@ -109,11 +109,12 @@ class BorrowingReturnService
                     $equipment->update(['status' => 'Mantenimiento']);
                     $maintenanceCount++;
                 } else {
-                    Borrowing::releaseEquipmentIfNoActiveBorrowings(
+                    if (Borrowing::releaseEquipmentIfNoActiveBorrowings(
                         equipmentId: $equipmentId,
                         ignoreBorrowingId: (int) $lockedBorrowing->getKey(),
-                    );
-                    $releasedCount++;
+                    )) {
+                        $releasedCount++;
+                    }
                 }
             }
 
