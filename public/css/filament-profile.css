@@ -1,0 +1,78 @@
+.profile-sheet-hero {
+    position: relative;
+    padding: 1.75rem;
+    border-inline-start: 4px solid #c69b55;
+    border-radius: 0 1rem 1rem 0;
+    background: linear-gradient(115deg, #edf3fa, #f8fafc 70%, #faf5eb);
+}
+
+.profile-sheet-hero > .fi-sc {
+    align-items: center;
+}
+
+.profile-sheet-hero .fi-sc .fi-sc {
+    gap: 0.65rem;
+}
+
+.profile-sheet-eyebrow.fi-in-text-item {
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    line-height: 1.6;
+}
+
+.profile-sheet-name.fi-in-text-item {
+    color: #0a2d5f;
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 750;
+    line-height: 1.2;
+    letter-spacing: -0.035em;
+    overflow-wrap: anywhere;
+}
+
+.profile-sheet-photo img {
+    border: 4px solid white;
+    box-shadow: 0 6px 20px #0a2d5f18;
+}
+
+.profile-sheet-initials.fi-in-text-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 7rem;
+    height: 7rem;
+    border: 4px solid white;
+    border-radius: 50%;
+    background: #0a2d5f;
+    color: white;
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    box-shadow: 0 6px 20px #0a2d5f18;
+}
+
+.profile-sheet-academic {
+    padding: 0.25rem 1.5rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.profile-sheet-contact {
+    padding: 0 1.5rem 0.5rem;
+}
+
+.profile-sheet-academic .fi-in-text-item,
+.profile-sheet-contact .fi-in-text-item {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+    .profile-sheet-hero {
+        padding: 1.25rem;
+    }
+
+    .profile-sheet-academic,
+    .profile-sheet-contact {
+        padding-inline: 0.25rem;
+    }
+}

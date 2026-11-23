@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Profiles\Tables;
 
+use App\Filament\Resources\Profiles\ProfileResource;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -18,7 +19,7 @@ class ProfilesTable
                 ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn() => asset('images/banner.svg')),
+                    ->defaultImageUrl(fn (): string => asset('images/default-avatar.svg')),
 
                 TextColumn::make('dni')
                     ->label('DNI')
@@ -31,19 +32,56 @@ class ProfilesTable
                     ->sortable(),
 
                 TextColumn::make('last_name')
-                    ->label('Apellidos')
+                    ->label('Apellido paterno')
                     ->searchable()
                     ->sortable(),
 
+                TextColumn::make('maternal_last_name')
+                    ->label('Apellido materno')
+                    ->placeholder('Sin apellido materno')
+                    ->searchable()
+                    ->sortable(),
+
+                TextColumn::make('program')
+                    ->label('Programa')
+                    ->placeholder('Sin programa')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('cycle')
+                    ->label('Ciclo')
+                    ->placeholder('Sin ciclo')
+                    ->formatStateUsing(fn (int|string $state): string => 'Ciclo '.$state)
+                    ->badge()
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('user_type')
+                    ->label('Tipo de usuario')
+                    ->placeholder('Sin tipo registrado')
+                    ->badge()
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
                 TextColumn::make('user.email')
-                    ->label('Cuenta Vinculada')
+                    ->label('Correo de la cuenta')
                     ->searchable()
                     ->sortable()
                     ->placeholder('Sin cuenta vinculada'),
 
                 TextColumn::make('phone')
-                    ->label('Teléfono')
+                    ->label('Número de celular')
+                    ->placeholder('Sin celular registrado')
                     ->searchable(),
+
+                TextColumn::make('address')
+                    ->label('Dirección')
+                    ->placeholder('Sin dirección registrada')
+                    ->searchable()
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('created_at')
                     ->label('Fecha de Registro')
@@ -55,6 +93,7 @@ class ProfilesTable
                 //
             ])
             ->recordActions([
+                ProfileResource::profileDetailsAction(),
                 EditAction::make(),
                 DeleteAction::make(),
             ])

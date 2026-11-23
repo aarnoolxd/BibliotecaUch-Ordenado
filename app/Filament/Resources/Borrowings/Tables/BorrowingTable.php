@@ -30,7 +30,7 @@ class BorrowingTable
 
                         return $query->whereHas('profile', function (Builder $profileQuery) use ($term): void {
                             $profileQuery->whereRaw(
-                                "LOWER(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) LIKE ?",
+                                "LOWER(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '') || ' ' || COALESCE(maternal_last_name, ''))) LIKE ?",
                                 [$term],
                             );
                         });
@@ -40,6 +40,7 @@ class BorrowingTable
                             ->leftJoin('profiles', 'profiles.id', '=', 'borrowings.profile_id')
                             ->orderBy('profiles.first_name', $direction)
                             ->orderBy('profiles.last_name', $direction)
+                            ->orderBy('profiles.maternal_last_name', $direction)
                             ->select('borrowings.*');
                     })
                     ->default(fn ($record) => $record->profile?->full_name ?? 'Estudiante no vinculado')
