@@ -75,11 +75,16 @@ class BorrowingResourceTest extends TestCase
         $this->get(BorrowingResource::getUrl('index'))
             ->assertOk()
             ->assertSeeText($linkedBorrowing->student_dni)
-            ->assertSeeText('Valeria Mendoza')
             ->assertSeeText($equipment->patrimonial_code)
             ->assertSeeText($equipment->model)
             ->assertSeeText('En curso')
-            ->assertSeeText($unlinkedBorrowing->student_dni)
+            ->assertSeeText($unlinkedBorrowing->student_dni);
+
+        Livewire::test(ListBorrowings::class)
+            ->assertCanNotRenderTableColumn('profile.full_name')
+            ->toggleAllTableColumns()
+            ->assertCanRenderTableColumn('profile.full_name')
+            ->assertSeeText('Valeria Mendoza')
             ->assertSeeText('Estudiante no vinculado');
     }
 
@@ -166,25 +171,15 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * La tabla de préstamos permite filtrar por estado (En curso, Devuelto, Vencido).
+     * La tabla de préstamos simplificada no expone filtros desplegables por estado.
      */
-    public function test_borrowings_table_can_filter_by_status(): void
+    public function test_borrowings_table_does_not_expose_status_filter(): void
     {
-        $inProgress = Borrowing::factory()->create(['status' => 'En curso']);
-        $returned = Borrowing::factory()->returned()->create();
-        $overdue = Borrowing::factory()->overdue()->create();
         $this->signInWithPermissions('ViewAny_Borrowing');
 
-        Livewire::test(ListBorrowings::class)
-            ->filterTable('status', 'En curso')
-            ->assertCanSeeTableRecords([$inProgress])
-            ->assertCanNotSeeTableRecords([$returned, $overdue])
-            ->filterTable('status', 'Devuelto')
-            ->assertCanSeeTableRecords([$returned])
-            ->assertCanNotSeeTableRecords([$inProgress, $overdue])
-            ->filterTable('status', 'Vencido')
-            ->assertCanSeeTableRecords([$overdue])
-            ->assertCanNotSeeTableRecords([$inProgress, $returned]);
+        $table = Livewire::test(ListBorrowings::class)->instance()->getTable();
+
+        $this->assertSame([], $table->getFilters());
     }
 
     /**
@@ -247,6 +242,7 @@ class BorrowingResourceTest extends TestCase
         }
 
         Livewire::test(ListBorrowings::class)
+            ->toggleAllTableColumns()
             ->sortTable('profile.full_name')
             ->assertCanSeeTableRecords([$anaBorrowing, $brunoBorrowing], inOrder: true)
             ->sortTable('profile.full_name', 'desc')
@@ -589,36 +585,20 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con Delete_Borrowing puede eliminar un préstamo activo desde la cabecera
-     * de edición, devolviendo el equipo a Disponible si no tiene otro préstamo activo.
+     * La página de edición de préstamos no expone la acción de eliminación en la cabecera,
+     * incluso cuando el usuario cuenta con Delete_Borrowing.
      */
-    public function test_a_user_with_delete_permission_can_delete_a_borrowing_from_the_edit_page(): void
+    public function test_edit_borrowing_page_does_not_expose_delete_action(): void
     {
         $equipment = Equipment::factory()->withStatus('Prestado')->create();
         $borrowing = Borrowing::factory()->for($equipment)->create(['status' => 'En curso']);
         $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing', 'Delete_Borrowing');
 
         Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
-            ->callAction(DeleteAction::class)
-            ->assertNotified()
-            ->assertRedirect(BorrowingResource::getUrl('index'));
-
-        $this->assertModelMissing($borrowing);
-        $this->assertSame('Disponible', $equipment->fresh()->status);
-    }
-
-    /**
-     * Un usuario sin Delete_Borrowing no debe ver la acción de eliminación en la página de edición.
-     */
-    public function test_a_user_without_delete_permission_cannot_see_delete_action_on_the_edit_page(): void
-    {
-        $borrowing = Borrowing::factory()->create();
-        $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
-
-        Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
-            ->assertActionHidden(DeleteAction::class);
+            ->assertActionDoesNotExist(DeleteAction::class);
 
         $this->assertModelExists($borrowing);
+        $this->assertSame('Prestado', $equipment->fresh()->status);
     }
 
     /**

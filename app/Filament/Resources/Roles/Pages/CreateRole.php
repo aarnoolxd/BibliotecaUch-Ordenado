@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Roles\Pages;
 
+use App\Filament\Resources\CreateRecord;
 use App\Filament\Resources\Roles\RoleResource;
 use BezhanSalleh\FilamentShield\Support\Utils;
-use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 

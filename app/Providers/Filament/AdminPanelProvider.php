@@ -12,7 +12,6 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Assets\Css;
 use Filament\View\PanelsRenderHook;
-use Filament\Widgets;
 use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -49,6 +48,12 @@ class AdminPanelProvider extends PanelProvider
                 'warning' => '#ea580c', // Naranja para advertencias
                 'info' => '#2563eb', // Azul claro para información
             ])
+            ->navigationGroups([
+                'Gestión de Seguridad',
+                'Gestión de Perfiles',
+                'Gestión de Inventario',
+                'Gestión de Préstamos',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
@@ -59,10 +64,6 @@ class AdminPanelProvider extends PanelProvider
                 fn (): View => view('filament.auth.google-button')
             )
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
-            ->widgets([
-                Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
-            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
