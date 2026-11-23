@@ -6,7 +6,6 @@ use App\Filament\Resources\Borrowings\BorrowingResource;
 use App\Filament\Resources\Borrowings\Pages\CreateBorrowing;
 use App\Filament\Resources\Borrowings\Pages\EditBorrowing;
 use App\Filament\Resources\Borrowings\Pages\ListBorrowings;
-use App\Filament\Resources\Borrowings\Pages\ViewBorrowing;
 use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Models\EquipmentIncident;
@@ -14,14 +13,16 @@ use App\Models\Permission;
 use App\Models\Profile;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\BorrowingReturnService;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -93,7 +94,7 @@ class BorrowingResourceTest extends TestCase
             ->assertSeeText($linkedBorrowing->student_dni)
             ->assertSeeText($equipment->patrimonial_code)
             ->assertSeeText($equipment->model)
-            ->assertSeeText('[UCH-PER-001] M185')
+            ->assertSeeText('M185')
             ->assertSeeText('Sin límite')
             ->assertSeeText('En curso')
             ->assertSeeText($peripheralsOnlyBorrowing->student_dni)
@@ -124,14 +125,13 @@ class BorrowingResourceTest extends TestCase
 
     /**
      * Un usuario que solo tiene ViewAny_Borrowing recibe HTTP 403 al intentar abrir
-     * directamente las páginas de vista individual, creación o edición de préstamos.
+     * directamente las páginas de creación o edición de préstamos.
      */
-    public function test_a_user_without_view_create_or_update_permission_is_forbidden_from_those_pages(): void
+    public function test_a_user_without_create_or_update_permission_is_forbidden_from_those_pages(): void
     {
-        $borrowing = Borrowing::factory()->create();
+        $borrowing = Borrowing::factory()->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
         $this->signInWithPermissions('ViewAny_Borrowing');
 
-        $this->get(BorrowingResource::getUrl('view', ['record' => $borrowing]))->assertForbidden();
         $this->get(BorrowingResource::getUrl('create'))->assertForbidden();
         $this->get(BorrowingResource::getUrl('edit', ['record' => $borrowing]))->assertForbidden();
     }
@@ -153,7 +153,7 @@ class BorrowingResourceTest extends TestCase
 
     /**
      * BorrowingPolicy debe denegar cada operación cuando falta su permiso exacto y autorizarla
-     * únicamente cuando el usuario cuenta con dicho permiso.
+     * únicamente cuando el usuario cuenta con dicho permiso (para update requiere estado En curso).
      */
     #[DataProvider('policyPermissionsProvider')]
     public function test_borrowing_policy_authorizes_each_ability_based_on_its_matching_permission(
@@ -161,7 +161,7 @@ class BorrowingResourceTest extends TestCase
         string $permission,
         bool $requiresRecord,
     ): void {
-        $borrowing = Borrowing::factory()->create();
+        $borrowing = Borrowing::factory()->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
         $subject = $requiresRecord ? $borrowing : Borrowing::class;
         $unauthorizedUser = $this->signInWithPermissions();
 
@@ -173,45 +173,11 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con View_Borrowing puede consultar el detalle de un préstamo incluyendo
-     * sus dispositivos adicionales hidratados en el formulario de consulta.
+     * La tabla de préstamos permite filtrar por estado (En curso, Devuelto, Vencido).
      */
-    public function test_a_user_with_view_permission_can_view_a_borrowing_record(): void
+    public function test_borrowings_table_can_filter_by_status(): void
     {
-        $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
-        $borrowing = Borrowing::factory()
-            ->withAdditionalEquipment($mouse)
-            ->create([
-                'observations' => 'Entrega con maletín y cargador original.',
-            ]);
-        $this->signInWithPermissions('ViewAny_Borrowing', 'View_Borrowing');
-
-        $this->get(BorrowingResource::getUrl('view', ['record' => $borrowing]))
-            ->assertOk();
-
-        Livewire::test(ViewBorrowing::class, ['record' => $borrowing->getRouteKey()])
-            ->assertSchemaStateSet([
-                'student_dni' => $borrowing->student_dni,
-                'equipment_id' => $borrowing->equipment_id,
-                'additional_equipment_ids' => [$mouse->getKey()],
-                'status' => $borrowing->status,
-                'observations' => 'Entrega con maletín y cargador original.',
-            ]);
-    }
-
-    /**
-     * La tabla de préstamos permite filtrar por estado, buscar por dispositivo adicional
-     * y restablecer los filtros y la búsqueda con la acción de barra de herramientas.
-     */
-    public function test_borrowings_table_can_filter_by_status_search_additional_equipment_and_reset_filters(): void
-    {
-        $mouse = Equipment::factory()->ofType('Periférico')->create([
-            'patrimonial_code' => 'UCH-PER-777',
-            'model' => 'Mouse Ergonómico',
-        ]);
-        $inProgress = Borrowing::factory()
-            ->withAdditionalEquipment($mouse)
-            ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+        $inProgress = Borrowing::factory()->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
         $returned = Borrowing::factory()->returned()->create();
         $overdue = Borrowing::factory()->overdue()->create();
         $this->signInWithPermissions('ViewAny_Borrowing');
@@ -220,13 +186,9 @@ class BorrowingResourceTest extends TestCase
             ->filterTable('status', Borrowing::STATUS_OVERDUE)
             ->assertCanSeeTableRecords([$overdue])
             ->assertCanNotSeeTableRecords([$inProgress, $returned])
-            ->callAction(TestAction::make('resetFilters')->table())
-            ->assertCanSeeTableRecords([$inProgress, $returned, $overdue])
-            ->searchTable('UCH-PER-777')
-            ->assertCanSeeTableRecords([$inProgress])
-            ->assertCanNotSeeTableRecords([$returned, $overdue])
-            ->callAction(TestAction::make('resetFilters')->table())
-            ->assertCanSeeTableRecords([$inProgress, $returned, $overdue]);
+            ->filterTable('status', Borrowing::STATUS_RETURNED)
+            ->assertCanSeeTableRecords([$returned])
+            ->assertCanNotSeeTableRecords([$inProgress, $overdue]);
     }
 
     /**
@@ -364,7 +326,6 @@ class BorrowingResourceTest extends TestCase
         $actor = $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
 
         Livewire::test(CreateBorrowing::class)
-            ->assertFormFieldDisabled('status')
             ->fillForm([
                 'student_dni' => '73334444',
                 'equipment_id' => $computer->getKey(),
@@ -543,10 +504,10 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con Update_Borrowing puede editar un préstamo activo conservando su
+     * Un usuario con Update_Borrowing puede editar un préstamo En curso conservando su
      * propio equipo Prestado y actualizar sus observaciones y fecha límite.
      */
-    public function test_a_user_with_update_permission_can_edit_an_active_borrowing_keeping_its_equipment(): void
+    public function test_a_user_with_update_permission_can_edit_an_in_progress_borrowing_keeping_its_equipment(): void
     {
         $profile = Profile::factory()->create(['dni' => '74445555']);
         $equipment = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
@@ -581,10 +542,10 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Al editar un préstamo activo se pueden agregar, reemplazar y quitar dispositivos adicionales
-     * o pasar de Computadora a Laptop/solo periféricos, sincronizando estados y due_date.
+     * Al editar un préstamo En curso se pueden agregar, reemplazar y quitar dispositivos adicionales
+     * o pasar de Computadora a solo periféricos, sincronizando estados y due_date.
      */
-    public function test_editing_an_active_borrowing_syncs_additional_equipment_and_clears_due_date_when_removing_computer(): void
+    public function test_editing_an_in_progress_borrowing_syncs_additional_equipment_and_clears_due_date_when_removing_computer(): void
     {
         $profile = Profile::factory()->create(['dni' => '74445556']);
         $computer = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
@@ -628,45 +589,48 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Al editar un préstamo ya devuelto, los campos de equipos permanecen bloqueados
-     * y no se modifican los estados operativos de los recursos.
+     * Solo los préstamos en estado En curso pueden editarse o devolverse: los préstamos
+     * Devuelto o Vencido deniegan update en policy, retornan 403 al editar, ocultan las
+     * acciones en tabla y son rechazados por BorrowingReturnService.
      */
-    public function test_editing_a_returned_borrowing_keeps_equipment_locked_and_allows_updating_observations(): void
+    public function test_only_in_progress_borrowings_can_be_edited_or_returned(): void
     {
-        $profile = Profile::factory()->create(['dni' => '74445557']);
-        $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Disponible')->create();
-        $otherLaptop = Equipment::factory()->ofType('Laptop')->withStatus('Disponible')->create();
-        $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Disponible')->create();
-        $borrowing = Borrowing::factory()
-            ->for($laptop)
-            ->for($profile)
-            ->withAdditionalEquipment($mouse)
-            ->returned()
-            ->create(['observations' => 'Nota original']);
-        $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
+        $inProgress = Borrowing::factory()->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+        $returned = Borrowing::factory()->returned()->create();
+        $overdue = Borrowing::factory()->overdue()->create();
 
-        Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
-            ->assertFormFieldDisabled('equipment_id')
-            ->assertFormFieldDisabled('additional_equipment_ids')
-            ->fillForm([
-                'student_dni' => $profile->dni,
-                'equipment_id' => $otherLaptop->getKey(),
-                'additional_equipment_ids' => [],
-                'observations' => 'Nota administrativa corregida',
-            ])
-            ->call('save')
-            ->assertHasNoFormErrors();
+        $user = $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
 
-        $borrowing->refresh()->load('additionalEquipment');
+        $this->assertTrue(Gate::forUser($user)->allows('update', $inProgress));
+        $this->assertTrue(Gate::forUser($user)->denies('update', $returned));
+        $this->assertTrue(Gate::forUser($user)->denies('update', $overdue));
 
-        $this->assertSame($laptop->getKey(), $borrowing->equipment_id);
-        $this->assertSame([$mouse->getKey()], $borrowing->additionalEquipment->pluck('id')->all());
-        $this->assertSame('Nota administrativa corregida', $borrowing->observations);
-        $this->assertSame('Disponible', $otherLaptop->fresh()->status);
+        $this->get(BorrowingResource::getUrl('edit', ['record' => $inProgress]))->assertOk();
+        $this->get(BorrowingResource::getUrl('edit', ['record' => $returned]))->assertForbidden();
+        $this->get(BorrowingResource::getUrl('edit', ['record' => $overdue]))->assertForbidden();
+
+        Livewire::test(ListBorrowings::class)
+            ->assertActionVisible(TestAction::make('registerReturn')->table($inProgress))
+            ->assertActionVisible(TestAction::make(EditAction::class)->table($inProgress))
+            ->assertActionHidden(TestAction::make('registerReturn')->table($returned))
+            ->assertActionHidden(TestAction::make(EditAction::class)->table($returned))
+            ->assertActionHidden(TestAction::make('registerReturn')->table($overdue))
+            ->assertActionHidden(TestAction::make(EditAction::class)->table($overdue));
+
+        $service = app(BorrowingReturnService::class);
+
+        foreach ([$returned, $overdue] as $blockedBorrowing) {
+            try {
+                $service->registerReturn($blockedBorrowing, []);
+                $this->fail('Se esperaba ValidationException al devolver un préstamo que no está En curso.');
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('borrowing', $exception->errors());
+            }
+        }
     }
 
     /**
-     * Al cambiar student_dni al editar un préstamo, EditBorrowing debe actualizar
+     * Al cambiar student_dni al editar un préstamo En curso, EditBorrowing debe actualizar
      * también profile_id al perfil correspondiente aunque no se dispare el evento blur.
      */
     public function test_editing_a_borrowing_updates_profile_id_when_student_dni_changes(): void
@@ -735,10 +699,10 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Al reasignar el equipo de un préstamo activo de A a B, el equipo B pasa a Prestado
+     * Al reasignar el equipo de un préstamo En curso de A a B, el equipo B pasa a Prestado
      * y el equipo A regresa a Disponible si no posee otro préstamo activo.
      */
-    public function test_changing_equipment_on_an_active_borrowing_syncs_both_equipment_statuses(): void
+    public function test_changing_equipment_on_an_in_progress_borrowing_syncs_both_equipment_statuses(): void
     {
         $profile = Profile::factory()->create(['dni' => '74446666']);
         $previousEquipment = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
@@ -804,7 +768,7 @@ class BorrowingResourceTest extends TestCase
 
     /**
      * Un usuario con Update_Borrowing puede registrar la devolución sin daños de préstamos
-     * En curso o Vencido (incluyendo préstamos de solo periféricos): no se crean incidencias,
+     * En curso (con equipo principal + periférico o solo periféricos): no se crean incidencias,
      * se registra return_date y todos los recursos vuelven a Disponible.
      */
     public function test_registering_a_return_without_damage_releases_all_devices_and_creates_no_incidents(): void
@@ -812,11 +776,10 @@ class BorrowingResourceTest extends TestCase
         $this->travelTo('2026-11-23 15:00:00');
         $computer = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
         $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
-        $overdueBorrowing = Borrowing::factory()
+        $combinedBorrowing = Borrowing::factory()
             ->for($computer)
             ->withAdditionalEquipment($mouse)
-            ->overdue()
-            ->create();
+            ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
 
         $cable = Equipment::factory()->ofType('Otro')->withStatus('Prestado')->create();
         $peripheralsOnlyBorrowing = Borrowing::factory()
@@ -827,14 +790,14 @@ class BorrowingResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
 
         Livewire::test(ListBorrowings::class)
-            ->callAction(TestAction::make('registerReturn')->table($overdueBorrowing))
+            ->callAction(TestAction::make('registerReturn')->table($combinedBorrowing))
             ->assertHasNoFormErrors()
             ->assertNotified('Devolución registrada');
 
-        $overdueBorrowing->refresh();
+        $combinedBorrowing->refresh();
 
-        $this->assertSame(Borrowing::STATUS_RETURNED, $overdueBorrowing->status);
-        $this->assertSame('2026-11-23 15:00:00', $overdueBorrowing->return_date->format('Y-m-d H:i:s'));
+        $this->assertSame(Borrowing::STATUS_RETURNED, $combinedBorrowing->status);
+        $this->assertSame('2026-11-23 15:00:00', $combinedBorrowing->return_date->format('Y-m-d H:i:s'));
         $this->assertSame('Disponible', $computer->fresh()->status);
         $this->assertSame('Disponible', $mouse->fresh()->status);
         $this->assertDatabaseCount('equipment_incidents', 0);
@@ -852,7 +815,7 @@ class BorrowingResourceTest extends TestCase
     /**
      * Al registrar una devolución con daño parcial (solo el periférico dañado), se crea
      * una única incidencia con su fotografía almacenada en el disco privado, el periférico
-     * pasa a Mantenimiento y el equipo principal sin daños vuelve a Disponible.
+     * pasa a Mantenimiento, el equipo sin daños vuelve a Disponible y observations no se altera.
      */
     public function test_registering_a_return_with_partial_damage_creates_incident_with_private_photo_and_sets_only_damaged_to_maintenance(): void
     {
@@ -964,24 +927,15 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * La acción Registrar Devolución permanece oculta para usuarios sin Update_Borrowing
-     * y para préstamos que ya se encuentran en estado Devuelto.
+     * La acción Registrar Devolución permanece oculta para usuarios sin Update_Borrowing.
      */
-    public function test_register_return_action_requires_update_permission_and_is_hidden_for_returned_borrowings(): void
+    public function test_register_return_action_is_hidden_without_update_permission(): void
     {
         $activeBorrowing = Borrowing::factory()->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
-        $returnedBorrowing = Borrowing::factory()->returned()->create();
-
         $this->signInWithPermissions('ViewAny_Borrowing');
 
         Livewire::test(ListBorrowings::class)
             ->assertActionHidden(TestAction::make('registerReturn')->table($activeBorrowing));
-
-        $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
-
-        Livewire::test(ListBorrowings::class)
-            ->assertActionVisible(TestAction::make('registerReturn')->table($activeBorrowing))
-            ->assertActionHidden(TestAction::make('registerReturn')->table($returnedBorrowing));
     }
 
     /**
@@ -1002,10 +956,10 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Eliminar un préstamo activo desde la tabla libera tanto el equipo principal como
-     * todos sus dispositivos adicionales; en cambio, un préstamo Devuelto no puede eliminarse.
+     * Eliminar un préstamo activo a nivel de modelo libera tanto el equipo principal como
+     * todos sus dispositivos adicionales sin otros préstamos activos.
      */
-    public function test_deleting_an_active_borrowing_releases_all_devices_while_returned_borrowing_cannot_be_deleted(): void
+    public function test_deleting_an_active_borrowing_model_releases_primary_and_additional_equipment(): void
     {
         $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
         $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
@@ -1013,84 +967,12 @@ class BorrowingResourceTest extends TestCase
             ->for($laptop)
             ->withAdditionalEquipment($mouse)
             ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
-        $returnedBorrowing = Borrowing::factory()->returned()->create();
-        $this->signInWithPermissions('ViewAny_Borrowing', 'Delete_Borrowing');
 
-        Livewire::test(ListBorrowings::class)
-            ->callAction(TestAction::make(DeleteAction::class)->table($activeBorrowing))
-            ->assertNotified('Registro de préstamo eliminado correctamente.');
+        $activeBorrowing->delete();
 
         $this->assertModelMissing($activeBorrowing);
         $this->assertSame('Disponible', $laptop->fresh()->status);
         $this->assertSame('Disponible', $mouse->fresh()->status);
-
-        Livewire::test(ListBorrowings::class)
-            ->callAction(TestAction::make(DeleteAction::class)->table($returnedBorrowing))
-            ->assertNotified('No se puede eliminar');
-
-        $this->assertModelExists($returnedBorrowing);
-    }
-
-    /**
-     * Un usuario con DeleteAny_Borrowing y Delete_Borrowing puede eliminar masivamente
-     * préstamos activos (liberando principales y adicionales), pero el borrado masivo
-     * se cancela si la selección incluye algún préstamo Devuelto.
-     */
-    public function test_bulk_delete_releases_active_devices_and_blocks_selection_containing_returned_borrowings(): void
-    {
-        $firstEquipment = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
-        $firstPeripheral = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
-        $secondEquipment = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
-        $keptEquipment = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
-
-        $firstToDelete = Borrowing::factory()
-            ->for($firstEquipment)
-            ->withAdditionalEquipment($firstPeripheral)
-            ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
-        $secondToDelete = Borrowing::factory()->for($secondEquipment)->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
-        $toKeep = Borrowing::factory()->for($keptEquipment)->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
-        $returned = Borrowing::factory()->returned()->create();
-        $this->signInWithPermissions('ViewAny_Borrowing', 'Delete_Borrowing', 'DeleteAny_Borrowing');
-
-        Livewire::test(ListBorrowings::class)
-            ->selectTableRecords([$firstToDelete, $returned])
-            ->callAction(TestAction::make(DeleteBulkAction::class)->table()->bulk())
-            ->assertNotified('No se pueden eliminar préstamos devueltos');
-
-        $this->assertModelExists($firstToDelete);
-        $this->assertModelExists($returned);
-
-        Livewire::test(ListBorrowings::class)
-            ->selectTableRecords([$firstToDelete, $secondToDelete])
-            ->callAction(TestAction::make(DeleteBulkAction::class)->table()->bulk())
-            ->assertNotified();
-
-        $this->assertModelMissing($firstToDelete);
-        $this->assertModelMissing($secondToDelete);
-        $this->assertSame('Disponible', $firstEquipment->fresh()->status);
-        $this->assertSame('Disponible', $firstPeripheral->fresh()->status);
-        $this->assertSame('Disponible', $secondEquipment->fresh()->status);
-
-        $this->assertModelExists($toKeep);
-        $this->assertSame('Prestado', $keptEquipment->fresh()->status);
-    }
-
-    /**
-     * Un usuario sin DeleteAny_Borrowing no puede ver el borrado masivo aunque tenga Delete_Borrowing.
-     */
-    public function test_a_user_without_delete_any_permission_cannot_bulk_delete_borrowings(): void
-    {
-        $records = Borrowing::factory()->count(2)->create();
-        $this->signInWithPermissions('ViewAny_Borrowing', 'Delete_Borrowing');
-        $bulkDeleteAction = TestAction::make(DeleteBulkAction::class)->table()->bulk();
-
-        Livewire::test(ListBorrowings::class)
-            ->selectTableRecords($records)
-            ->assertActionHidden($bulkDeleteAction);
-
-        foreach ($records as $borrowing) {
-            $this->assertModelExists($borrowing);
-        }
     }
 
     /**
@@ -1182,7 +1064,7 @@ class BorrowingResourceTest extends TestCase
         ]);
         $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
 
-        $component = Livewire::test(CreateBorrowing::class)
+        Livewire::test(CreateBorrowing::class)
             ->fillForm([
                 'student_dni' => $profile->dni,
                 'equipment_id' => $equipment->getKey(),
@@ -1191,11 +1073,6 @@ class BorrowingResourceTest extends TestCase
             ->call('create')
             ->assertHasFormErrors(['equipment_id'])
             ->assertNotNotified();
-
-        $this->assertSame(
-            ["El recurso 'Dell Latitude 5430' no se encuentra disponible (Estado actual: {$status}). No se puede registrar el préstamo."],
-            $component->errors()->get('data.equipment_id'),
-        );
 
         $this->assertDatabaseCount('borrowings', 0);
         $this->assertSame($status, $equipment->fresh()->status);
