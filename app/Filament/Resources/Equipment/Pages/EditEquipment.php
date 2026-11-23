@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Equipment\Pages;
 
 use App\Filament\Resources\Equipment\EquipmentResource;
-use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditEquipment extends EditRecord
@@ -12,9 +11,7 @@ class EditEquipment extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [
-            DeleteAction::make(),
-        ];
+        return [];
     }
 
     protected function getSavedNotificationTitle(): ?string

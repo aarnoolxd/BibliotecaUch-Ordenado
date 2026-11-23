@@ -7,7 +7,6 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -43,7 +42,8 @@ class BorrowingTable
                             ->orderBy('profiles.last_name', $direction)
                             ->select('borrowings.*');
                     })
-                    ->default(fn ($record) => $record->profile?->full_name ?? 'Estudiante no vinculado'),
+                    ->default(fn ($record) => $record->profile?->full_name ?? 'Estudiante no vinculado')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('equipment.patrimonial_code')
                     ->label('Cód. Patrimonial')
@@ -77,15 +77,7 @@ class BorrowingTable
                     }),
             ])
             ->defaultSort('created_at', 'desc')
-            ->filters([
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->options([
-                        'En curso' => 'En curso',
-                        'Devuelto' => 'Devuelto',
-                        'Vencido' => 'Vencido',
-                    ]),
-            ])
+            ->filters([])
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),

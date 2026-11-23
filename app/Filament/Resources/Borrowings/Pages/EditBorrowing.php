@@ -6,7 +6,6 @@ use App\Filament\Resources\Borrowings\BorrowingResource;
 use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Models\Profile;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
@@ -21,7 +20,6 @@ class EditBorrowing extends EditRecord
     {
         return [
             ViewAction::make(),
-            DeleteAction::make(),
         ];
     }
 
