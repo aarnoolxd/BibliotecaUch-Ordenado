@@ -27,9 +27,9 @@ class BorrowingReturnService
                 ->lockForUpdate()
                 ->findOrFail($borrowing->getKey());
 
-            if ($lockedBorrowing->status !== Borrowing::STATUS_IN_PROGRESS) {
+            if (! in_array($lockedBorrowing->status, Borrowing::ACTIVE_STATUSES, true)) {
                 throw ValidationException::withMessages([
-                    'borrowing' => 'Solo se puede registrar la devolución de préstamos en estado "En curso".',
+                    'borrowing' => 'Este préstamo ya cuenta con una devolución registrada.',
                 ]);
             }
 

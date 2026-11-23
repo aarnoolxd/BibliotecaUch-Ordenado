@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Filament\Support\Colors\Color;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -77,6 +78,33 @@ class Borrowing extends Model
                 }
             });
         });
+    }
+
+    /**
+     * Color semántico unificado para badges de estado (tabla y ficha modal).
+     *
+     * @return string|array<int, string>
+     */
+    public static function statusColor(string $status): string|array
+    {
+        return match ($status) {
+            self::STATUS_IN_PROGRESS => 'info',
+            self::STATUS_RETURNED => Color::Emerald,
+            self::STATUS_OVERDUE => 'danger',
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Marca como Vencido todos los préstamos En curso cuya fecha límite (due_date) ya expiró.
+     */
+    public static function markOverdueBorrowings(): int
+    {
+        return self::query()
+            ->where('status', self::STATUS_IN_PROGRESS)
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now())
+            ->update(['status' => self::STATUS_OVERDUE]);
     }
 
     /**

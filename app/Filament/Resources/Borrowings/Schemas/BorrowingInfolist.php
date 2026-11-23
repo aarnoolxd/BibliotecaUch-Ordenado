@@ -31,7 +31,7 @@ class BorrowingInfolist
                             ->circular()
                             ->imageSize(112)
                             ->extraAttributes(['class' => 'borrowing-sheet-photo'])
-                            ->visible(fn(Borrowing $record): bool => filled($record->profile?->photo)),
+                            ->visible(fn (Borrowing $record): bool => filled($record->profile?->photo)),
                         TextEntry::make('borrower_initials')
                             ->label('Iniciales')
                             ->hiddenLabel()
@@ -43,14 +43,14 @@ class BorrowingInfolist
                                 }
 
                                 $initials = mb_strtoupper(
-                                    mb_substr(trim((string)$profile->first_name), 0, 1)
-                                    . mb_substr(trim((string)$profile->last_name), 0, 1)
+                                    mb_substr(trim((string) $profile->first_name), 0, 1)
+                                    .mb_substr(trim((string) $profile->last_name), 0, 1)
                                 );
 
                                 return $initials !== '' ? $initials : '—';
                             })
                             ->extraAttributes(['class' => 'borrowing-sheet-initials'])
-                            ->visible(fn(Borrowing $record): bool => blank($record->profile?->photo)),
+                            ->visible(fn (Borrowing $record): bool => blank($record->profile?->photo)),
                         Group::make([
                             TextEntry::make('borrowing_heading')
                                 ->hiddenLabel()
@@ -59,7 +59,7 @@ class BorrowingInfolist
                             TextEntry::make('borrower_name')
                                 ->label('Solicitante')
                                 ->hiddenLabel()
-                                ->state(fn(Borrowing $record): string => $record->profile?->full_name ?: 'Estudiante no vinculado')
+                                ->state(fn (Borrowing $record): string => $record->profile?->full_name ?: 'Estudiante no vinculado')
                                 ->size('lg')
                                 ->weight(FontWeight::Bold)
                                 ->extraAttributes(['class' => 'borrowing-sheet-title']),
@@ -67,12 +67,7 @@ class BorrowingInfolist
                                 ->label('Estado del préstamo')
                                 ->hiddenLabel()
                                 ->badge()
-                                ->color(fn(string $state): string => match ($state) {
-                                    Borrowing::STATUS_IN_PROGRESS => 'gray',
-                                    Borrowing::STATUS_RETURNED => 'success',
-                                    Borrowing::STATUS_OVERDUE => 'danger',
-                                    default => 'gray',
-                                }),
+                                ->color(fn (string $state): string|array => Borrowing::statusColor($state)),
                         ])
                             ->columnSpan(['sm' => 3]),
                     ]),
@@ -102,8 +97,8 @@ class BorrowingInfolist
                         TextEntry::make('additional_equipment_summary')
                             ->label('Periféricos / Otros dispositivos')
                             ->icon(Heroicon::OutlinedCpuChip)
-                            ->state(fn(Borrowing $record): array => $record->additionalEquipment
-                                ->map(fn(Equipment $item): string => "[{$item->patrimonial_code}] {$item->brand} {$item->model}")
+                            ->state(fn (Borrowing $record): array => $record->additionalEquipment
+                                ->map(fn (Equipment $item): string => "[{$item->patrimonial_code}] {$item->brand} {$item->model}")
                                 ->all())
                             ->badge()
                             ->color('gray')
@@ -163,7 +158,7 @@ class BorrowingInfolist
 
                 Grid::make(1)
                     ->extraAttributes(['class' => 'borrowing-sheet-incidents'])
-                    ->visible(fn(Borrowing $record): bool => $record->incidents->isNotEmpty())
+                    ->visible(fn (Borrowing $record): bool => $record->incidents->isNotEmpty())
                     ->schema([
                         TextEntry::make('incidents_heading')
                             ->hiddenLabel()
@@ -201,13 +196,13 @@ class BorrowingInfolist
                                         ViewEntry::make('photo')
                                             ->label('Evidencia')
                                             ->view('filament.infolists.lightbox-image')
-                                            ->viewData(fn(EquipmentIncident $record): array => [
+                                            ->viewData(fn (EquipmentIncident $record): array => [
                                                 'alt' => $record->equipment !== null
                                                     ? "Evidencia — [{$record->equipment->patrimonial_code}] {$record->equipment->brand} {$record->equipment->model}"
                                                     : 'Evidencia fotográfica del daño',
                                                 'caption' => $record->description,
                                             ])
-                                            ->visible(fn(EquipmentIncident $record): bool => filled($record->photo)),
+                                            ->visible(fn (EquipmentIncident $record): bool => filled($record->photo)),
                                     ]),
                             ]),
                     ]),

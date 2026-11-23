@@ -33,6 +33,12 @@ class BorrowingPolicy
             && $borrowing->status === Borrowing::STATUS_IN_PROGRESS;
     }
 
+    public function registerReturn(AuthUser $authUser, Borrowing $borrowing): bool
+    {
+        return $authUser->can('Update_Borrowing')
+            && in_array($borrowing->status, Borrowing::ACTIVE_STATUSES, true);
+    }
+
     public function delete(AuthUser $authUser, Borrowing $borrowing): bool
     {
         return $authUser->can('Delete_Borrowing');
