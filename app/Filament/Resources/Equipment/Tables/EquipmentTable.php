@@ -31,10 +31,14 @@ class EquipmentTable
             ->deferLoading()
             ->striped()
 
-            // UB-117: Mensaje explicativo cuando el inventario esté vacío (Criterio 5 HU-04)
+            // UB-117: Mensaje explicativo cuando el inventario esté vacío o sin coincidencias (Criterio 5 HU-04)
             ->emptyStateIcon(Heroicon::OutlinedComputerDesktop)
-            ->emptyStateHeading('Sin equipos registrados')
-            ->emptyStateDescription('El inventario aún no tiene equipos registrados. Haz clic en "Crear Equipo" para añadir el primer recurso.')
+            ->emptyStateHeading(fn (Table $table): string => self::hasActiveSearchOrFilters($table)
+                ? 'No se encontraron equipos'
+                : 'Sin equipos registrados')
+            ->emptyStateDescription(fn (Table $table): string => self::hasActiveSearchOrFilters($table)
+                ? 'No hay equipos que coincidan con la búsqueda o los filtros aplicados.'
+                : 'El inventario aún no tiene equipos registrados. Haz clic en "Crear Equipo" para añadir el primer recurso.')
 
             // UB-116: Columnas principales del listado (Criterio 2 HU-04)
             ->columns([
@@ -67,11 +71,11 @@ class EquipmentTable
                         ->label('Estado')
                         ->badge()
                         ->color(fn (string $state): string => match ($state) {
-                            'Disponible'    => 'success',
-                            'Prestado'      => 'warning',
+                            'Disponible' => 'success',
+                            'Prestado' => 'warning',
                             'Mantenimiento' => 'danger',
-                            'Baja'          => 'gray',
-                            default         => 'secondary',
+                            'Baja' => 'gray',
+                            default => 'secondary',
                         })
                         ->sortable(),
                 ]),
@@ -82,6 +86,7 @@ class EquipmentTable
                         TextColumn::make('serial_number')
                             ->label('N° de Serie')
                             ->icon(Heroicon::OutlinedFingerPrint)
+                            ->searchable()
                             ->copyable()
                             ->copyMessage('Número de serie copiado al portapapeles'),
 
@@ -106,18 +111,18 @@ class EquipmentTable
                     ->label('Filtrar por Categoría')
                     ->options([
                         'Computadora' => 'Computadora',
-                        'Laptop'      => 'Laptop',
-                        'Periférico'  => 'Periférico',
-                        'Otro'        => 'Otro',
+                        'Laptop' => 'Laptop',
+                        'Periférico' => 'Periférico',
+                        'Otro' => 'Otro',
                     ]),
 
                 SelectFilter::make('status')
                     ->label('Filtrar por Estado')
                     ->options([
-                        'Disponible'    => 'Disponible',
-                        'Prestado'      => 'Prestado',
+                        'Disponible' => 'Disponible',
+                        'Prestado' => 'Prestado',
                         'Mantenimiento' => 'Mantenimiento',
-                        'Baja'          => 'Baja',
+                        'Baja' => 'Baja',
                     ]),
             ])
             ->recordActions([
@@ -130,5 +135,21 @@ class EquipmentTable
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Determina si la tabla tiene una búsqueda, un filtro o una pestaña de estado activa.
+     */
+    private static function hasActiveSearchOrFilters(Table $table): bool
+    {
+        $livewire = $table->getLivewire();
+
+        $hasActiveTabFilter = property_exists($livewire, 'activeTab')
+            && filled($livewire->activeTab)
+            && $livewire->activeTab !== 'todos';
+
+        return $livewire->hasTableSearch()
+            || $table->getActiveFiltersCount() > 0
+            || $hasActiveTabFilter;
     }
 }

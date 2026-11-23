@@ -131,10 +131,10 @@ class EquipmentResourceTest extends TestCase
     }
 
     /**
-     * La tabla de equipos permite buscar por código patrimonial, categoría, marca y modelo,
-     * filtrando los demás registros.
+     * La tabla de equipos permite buscar por código patrimonial, categoría, marca, modelo
+     * y número de serie, filtrando los demás registros.
      */
-    public function test_equipment_table_can_search_by_patrimonial_code_type_brand_and_model(): void
+    public function test_equipment_table_can_search_by_patrimonial_code_type_brand_model_and_serial_number(): void
     {
         $matching = Equipment::factory()->create([
             'patrimonial_code' => 'UCH-EQ-90001',
@@ -154,12 +154,39 @@ class EquipmentResourceTest extends TestCase
 
         $table = Livewire::test(ListEquipments::class)->loadTable();
 
-        foreach (['UCH-EQ-90001', 'Laptop', 'Lenovo', 'ThinkPad X1'] as $term) {
+        foreach (['UCH-EQ-90001', 'Laptop', 'Lenovo', 'ThinkPad X1', 'SN-UNIQUE-001'] as $term) {
             $table
                 ->searchTable($term)
                 ->assertCanSeeTableRecords([$matching])
                 ->assertCanNotSeeTableRecords([$other]);
         }
+    }
+
+    /**
+     * La tabla muestra el mensaje de inventario vacío únicamente cuando no hay búsqueda ni
+     * filtros activos; cuando una búsqueda o filtro no tiene coincidencias muestra un aviso específico.
+     */
+    public function test_equipment_table_distinguishes_empty_inventory_from_unmatched_search_or_filters(): void
+    {
+        $this->signInWithPermissions('ViewAny_Equipment');
+
+        Livewire::test(ListEquipments::class)
+            ->loadTable()
+            ->assertSeeText('Sin equipos registrados')
+            ->assertSeeText('El inventario aún no tiene equipos registrados.');
+
+        Equipment::factory()->withStatus('Disponible')->create();
+
+        Livewire::test(ListEquipments::class)
+            ->loadTable()
+            ->searchTable('CODIGO-INEXISTENTE')
+            ->assertSeeText('No se encontraron equipos')
+            ->assertSeeText('No hay equipos que coincidan con la búsqueda o los filtros aplicados.')
+            ->assertDontSeeText('Sin equipos registrados')
+            ->searchTable('')
+            ->filterTable('status', 'Baja')
+            ->assertSeeText('No se encontraron equipos')
+            ->assertDontSeeText('Sin equipos registrados');
     }
 
     /**
