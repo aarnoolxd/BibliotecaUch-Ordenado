@@ -18,11 +18,22 @@ class CreateBorrowing extends CreateRecord
 {
     protected static string $resource = BorrowingResource::class;
 
+    /**
+     * IDs de dispositivos adicionales validados para sincronizar tras crear el préstamo.
+     *
+     * @var list<int>
+     */
+    protected array $additionalEquipmentIds = [];
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Subtarea [UB-145] / Criterio 2: Validar existencia del DNI en el sistema
-        $profile = Profile::where('dni', trim($data['student_dni'] ?? ''))->first();
-        if (! $profile) {
+        $profile = Profile::query()->where('dni', trim((string) ($data['student_dni'] ?? '')))->first();
+
+        if ($profile === null) {
             Notification::make()
                 ->danger()
                 ->title('DNI no encontrado')
@@ -35,72 +46,159 @@ class CreateBorrowing extends CreateRecord
             ]);
         }
 
+        $data['student_dni'] = $profile->dni;
         $data['profile_id'] = $profile->id;
 
-        // Subtarea [UB-142] / Criterio 3: Bloquear la fila del equipo dentro de la transacción
-        // y verificar su disponibilidad antes de registrar el préstamo.
-        $equipment = Equipment::query()
+        $primaryEquipmentId = filled($data['equipment_id'] ?? null) ? (int) $data['equipment_id'] : null;
+        $additionalIds = array_values(array_unique(array_map(
+            'intval',
+            array_filter(is_array($data['additional_equipment_ids'] ?? null) ? $data['additional_equipment_ids'] : [], fn (mixed $id): bool => filled($id)),
+        )));
+        sort($additionalIds);
+        unset($data['additional_equipment_ids']);
+
+        if ($primaryEquipmentId === null && $additionalIds === []) {
+            throw ValidationException::withMessages([
+                'data.equipment_id' => 'Debe seleccionar al menos un equipo principal o un dispositivo adicional para registrar el préstamo.',
+            ]);
+        }
+
+        $allIds = $additionalIds;
+        if ($primaryEquipmentId !== null) {
+            $allIds[] = $primaryEquipmentId;
+        }
+        $allIds = array_values(array_unique($allIds));
+        sort($allIds);
+
+        $lockedEquipments = Equipment::query()
+            ->whereIn('id', $allIds)
+            ->orderBy('id')
             ->lockForUpdate()
-            ->find($data['equipment_id'] ?? null);
+            ->get()
+            ->keyBy('id');
 
-        if (! $equipment) {
-            Notification::make()
-                ->danger()
-                ->title('Recurso inválido')
-                ->body('El recurso seleccionado no existe en el catálogo.')
-                ->send();
+        $primaryEquipment = null;
 
-            throw ValidationException::withMessages([
-                'data.equipment_id' => 'El recurso seleccionado no existe.',
-            ]);
+        if ($primaryEquipmentId !== null) {
+            /** @var Equipment|null $primaryEquipment */
+            $primaryEquipment = $lockedEquipments->get($primaryEquipmentId);
+
+            if ($primaryEquipment === null) {
+                Notification::make()
+                    ->danger()
+                    ->title('Recurso inválido')
+                    ->body('El recurso seleccionado no existe en el catálogo.')
+                    ->send();
+
+                throw ValidationException::withMessages([
+                    'data.equipment_id' => 'El recurso seleccionado no existe.',
+                ]);
+            }
+
+            if (! in_array($primaryEquipment->type, Equipment::PRIMARY_BORROWING_TYPES, true)) {
+                throw ValidationException::withMessages([
+                    'data.equipment_id' => 'Solo puede seleccionar una Computadora o Laptop como equipo principal.',
+                ]);
+            }
+
+            if ($primaryEquipment->status !== 'Disponible') {
+                Notification::make()
+                    ->danger()
+                    ->title('Recurso no disponible')
+                    ->body("El recurso seleccionado no se encuentra disponible (Estado actual: {$primaryEquipment->status}). No se puede registrar el préstamo.")
+                    ->persistent()
+                    ->send();
+
+                throw ValidationException::withMessages([
+                    'data.equipment_id' => "El recurso '{$primaryEquipment->brand} {$primaryEquipment->model}' no está Disponible (Estado: {$primaryEquipment->status}).",
+                ]);
+            }
         }
 
-        if ($equipment->status !== 'Disponible') {
-            Notification::make()
-                ->danger()
-                ->title('Recurso no disponible')
-                ->body("El recurso seleccionado no se encuentra disponible (Estado actual: {$equipment->status}). No se puede registrar el préstamo.")
-                ->persistent()
-                ->send();
+        foreach ($additionalIds as $additionalId) {
+            /** @var Equipment|null $additional */
+            $additional = $lockedEquipments->get($additionalId);
 
-            throw ValidationException::withMessages([
-                'data.equipment_id' => "El recurso '{$equipment->brand} {$equipment->model}' no está Disponible (Estado: {$equipment->status}).",
-            ]);
+            if ($additional === null) {
+                throw ValidationException::withMessages([
+                    'data.additional_equipment_ids' => 'Uno de los dispositivos adicionales seleccionados no existe en el catálogo.',
+                ]);
+            }
+
+            if (! in_array($additional->type, Equipment::ADDITIONAL_BORROWING_TYPES, true)) {
+                throw ValidationException::withMessages([
+                    'data.additional_equipment_ids' => "El recurso '{$additional->brand} {$additional->model}' no pertenece a la categoría Periférico u Otro.",
+                ]);
+            }
+
+            if ($additional->status !== 'Disponible') {
+                Notification::make()
+                    ->danger()
+                    ->title('Dispositivo no disponible')
+                    ->body("El dispositivo '{$additional->brand} {$additional->model}' no se encuentra disponible (Estado actual: {$additional->status}).")
+                    ->persistent()
+                    ->send();
+
+                throw ValidationException::withMessages([
+                    'data.additional_equipment_ids' => "El dispositivo '{$additional->brand} {$additional->model}' no está Disponible (Estado: {$additional->status}).",
+                ]);
+            }
         }
 
-        // Subtarea [UB-141] / Criterio 4: Aplicar siempre la regla de vencimiento según tipo de equipo
+        $this->additionalEquipmentIds = $additionalIds;
+
         $borrowingDate = ! empty($data['borrowing_date']) ? Carbon::parse($data['borrowing_date']) : now();
+        $data['equipment_id'] = $primaryEquipmentId;
         $data['borrowing_date'] = $borrowingDate->toDateTimeString();
-        $data['due_date'] = Borrowing::calculateDueDate($equipment->type, $borrowingDate)->toDateTimeString();
-
-        // Subtarea [UB-144] / Criterio 5: Asignar automáticamente el estado "En curso" al préstamo
-        $data['status'] = 'En curso';
+        $data['due_date'] = Borrowing::calculateDueDate($primaryEquipment?->type, $borrowingDate)?->toDateTimeString();
+        $data['status'] = Borrowing::STATUS_IN_PROGRESS;
         $data['registered_by'] = Auth::id();
 
         return $data;
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
     protected function handleRecordCreation(array $data): Model
     {
+        $allIds = $this->additionalEquipmentIds;
+
+        if ($data['equipment_id'] !== null) {
+            $allIds[] = (int) $data['equipment_id'];
+        }
+
+        $allIds = array_values(array_unique($allIds));
+        sort($allIds);
+
         $claimed = Equipment::query()
-            ->whereKey($data['equipment_id'])
+            ->whereIn('id', $allIds)
             ->where('status', 'Disponible')
             ->update(['status' => 'Prestado']);
 
-        if ($claimed !== 1) {
+        if ($claimed !== count($allIds)) {
             Notification::make()
                 ->danger()
                 ->title('Recurso no disponible')
-                ->body('El recurso seleccionado dejó de estar disponible antes de confirmar el préstamo.')
+                ->body('Alguno de los recursos seleccionados dejó de estar disponible antes de confirmar el préstamo.')
                 ->persistent()
                 ->send();
 
+            $errorField = $data['equipment_id'] !== null ? 'data.equipment_id' : 'data.additional_equipment_ids';
+
             throw ValidationException::withMessages([
-                'data.equipment_id' => 'El recurso seleccionado ya no está Disponible.',
+                $errorField => 'Alguno de los recursos seleccionados ya no está Disponible.',
             ]);
         }
 
-        return parent::handleRecordCreation($data);
+        /** @var Borrowing $borrowing */
+        $borrowing = parent::handleRecordCreation($data);
+
+        if ($this->additionalEquipmentIds !== []) {
+            $borrowing->additionalEquipment()->sync($this->additionalEquipmentIds);
+        }
+
+        return $borrowing;
     }
 
     protected function getCreateFormAction(): Action
@@ -108,13 +206,12 @@ class CreateBorrowing extends CreateRecord
         return parent::getCreateFormAction()
             ->requiresConfirmation()
             ->modalHeading('Confirmar registro de préstamo')
-            ->modalDescription('¿Está seguro de que desea registrar este préstamo? El recurso pasará al estado "Prestado" y quedará asignado al estudiante.')
+            ->modalDescription('¿Está seguro de que desea registrar este préstamo? Los recursos seleccionados pasarán al estado "Prestado" y quedarán asignados al estudiante.')
             ->modalSubmitActionLabel('Confirmar y Registrar Préstamo');
     }
 
     protected function getCreatedNotificationTitle(): ?string
     {
-        // Subtarea [UB-144] / Criterio 5: Notificación de confirmación en pantalla
         return 'Préstamo registrado exitosamente en estado "En curso"';
     }
 
