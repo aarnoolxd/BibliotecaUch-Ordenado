@@ -67,8 +67,11 @@ class EquipmentResourceTest extends TestCase
             ->assertSeeText($equipment->type)
             ->assertSeeText($equipment->brand)
             ->assertSeeText($equipment->model)
-            ->assertSeeText($equipment->serial_number)
-            ->assertSeeText($equipment->status);
+            ->assertSeeText($equipment->status)
+            ->assertCanNotRenderTableColumn('serial_number')
+            ->toggleAllTableColumns()
+            ->assertCanRenderTableColumn('serial_number')
+            ->assertSeeText($equipment->serial_number);
     }
 
     /**
@@ -163,10 +166,10 @@ class EquipmentResourceTest extends TestCase
     }
 
     /**
-     * La tabla muestra el mensaje de inventario vacío únicamente cuando no hay búsqueda ni
-     * filtros activos; cuando una búsqueda o filtro no tiene coincidencias muestra un aviso específico.
+     * La tabla muestra el mensaje de inventario vacío únicamente cuando no hay búsqueda activa;
+     * cuando una búsqueda no tiene coincidencias muestra un aviso específico.
      */
-    public function test_equipment_table_distinguishes_empty_inventory_from_unmatched_search_or_filters(): void
+    public function test_equipment_table_distinguishes_empty_inventory_from_unmatched_search(): void
     {
         $this->signInWithPermissions('ViewAny_Equipment');
 
@@ -182,10 +185,6 @@ class EquipmentResourceTest extends TestCase
             ->searchTable('CODIGO-INEXISTENTE')
             ->assertSeeText('No se encontraron equipos')
             ->assertSeeText('No hay equipos que coincidan con la búsqueda o los filtros aplicados.')
-            ->assertDontSeeText('Sin equipos registrados')
-            ->searchTable('')
-            ->filterTable('status', 'Baja')
-            ->assertSeeText('No se encontraron equipos')
             ->assertDontSeeText('Sin equipos registrados');
     }
 
@@ -216,30 +215,15 @@ class EquipmentResourceTest extends TestCase
     }
 
     /**
-     * La tabla de equipos permite filtrar de forma independiente por categoría (type) y
-     * por estado operativo (status).
+     * La tabla de equipos simplificada no expone filtros desplegables de categoría ni estado.
      */
-    public function test_equipment_table_can_filter_by_type_and_status(): void
+    public function test_equipment_table_does_not_expose_type_or_status_filters(): void
     {
-        $availableLaptop = Equipment::factory()
-            ->ofType('Laptop')
-            ->withStatus('Disponible')
-            ->create();
-        $maintenanceDesktop = Equipment::factory()
-            ->ofType('Computadora')
-            ->withStatus('Mantenimiento')
-            ->create();
         $this->signInWithPermissions('ViewAny_Equipment');
 
-        Livewire::test(ListEquipments::class)
-            ->loadTable()
-            ->filterTable('type', 'Laptop')
-            ->assertCanSeeTableRecords([$availableLaptop])
-            ->assertCanNotSeeTableRecords([$maintenanceDesktop])
-            ->resetTableFilters()
-            ->filterTable('status', 'Mantenimiento')
-            ->assertCanSeeTableRecords([$maintenanceDesktop])
-            ->assertCanNotSeeTableRecords([$availableLaptop]);
+        $table = Livewire::test(ListEquipments::class)->instance()->getTable();
+
+        $this->assertSame([], $table->getFilters());
     }
 
     /**
@@ -375,27 +359,24 @@ class EquipmentResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con Delete_Equipment puede eliminar un equipo desde la acción de cabecera
-     * en la página de edición y ser redirigido al listado.
+     * La página de edición de equipos no expone la acción de eliminación en la cabecera,
+     * incluso cuando el usuario cuenta con el permiso Delete_Equipment.
      */
-    public function test_a_user_with_delete_permission_can_delete_equipment_from_the_edit_page(): void
+    public function test_edit_equipment_page_does_not_expose_delete_action(): void
     {
         $equipment = Equipment::factory()->create();
         $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment', 'Delete_Equipment');
 
         Livewire::test(EditEquipment::class, ['record' => $equipment->getRouteKey()])
-            ->callAction(DeleteAction::class)
-            ->assertNotified()
-            ->assertRedirect(EquipmentResource::getUrl('index'));
+            ->assertActionDoesNotExist(DeleteAction::class);
 
-        $this->assertModelMissing($equipment);
+        $this->assertModelExists($equipment);
     }
 
     /**
-     * Un usuario sin Delete_Equipment no puede ver ni ejecutar el borrado ni desde la tabla
-     * ni desde la cabecera de la página de edición.
+     * Un usuario sin Delete_Equipment no puede ver ni ejecutar el borrado desde la tabla.
      */
-    public function test_a_user_without_delete_permission_cannot_delete_equipment_from_the_table_or_edit_page(): void
+    public function test_a_user_without_delete_permission_cannot_delete_equipment_from_the_table(): void
     {
         $equipment = Equipment::factory()->create();
         $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment');
@@ -405,9 +386,6 @@ class EquipmentResourceTest extends TestCase
             ->mountAction($tableDeleteAction)
             ->call('callMountedAction')
             ->assertActionHidden($tableDeleteAction);
-
-        Livewire::test(EditEquipment::class, ['record' => $equipment->getRouteKey()])
-            ->assertActionHidden(DeleteAction::class);
 
         $this->assertModelExists($equipment);
     }
