@@ -46,7 +46,7 @@ class EquipmentSeeder extends Seeder
                 'brand' => 'Lenovo',
                 'model' => 'ThinkPad T14 Gen 3',
                 'serial_number' => 'SN-UCH-LP-0003',
-                'status' => 'Disponible',
+                'status' => 'Prestado',
                 'observations' => 'Incluye cargador original de 65W y maletín.',
             ],
             [
