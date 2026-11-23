@@ -173,22 +173,40 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * La tabla de préstamos permite filtrar por estado (En curso, Devuelto, Vencido).
+     * La tabla de préstamos permite filtrar por estado y por incidencias, y buscar por dispositivos adicionales.
      */
-    public function test_borrowings_table_can_filter_by_status(): void
+    public function test_borrowings_table_can_filter_by_status_and_incidents_and_search_additional_equipment(): void
     {
-        $inProgress = Borrowing::factory()->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
-        $returned = Borrowing::factory()->returned()->create();
+        $mouse = Equipment::factory()->ofType('Periférico')->create([
+            'patrimonial_code' => 'UCH-PER-777',
+            'model' => 'Mouse Ergonómico',
+        ]);
+        $inProgress = Borrowing::factory()
+            ->withAdditionalEquipment($mouse)
+            ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+        $returnedWithIncident = Borrowing::factory()->returned()->create();
+        EquipmentIncident::factory()->for($returnedWithIncident)->create();
         $overdue = Borrowing::factory()->overdue()->create();
         $this->signInWithPermissions('ViewAny_Borrowing');
 
         Livewire::test(ListBorrowings::class)
             ->filterTable('status', Borrowing::STATUS_OVERDUE)
             ->assertCanSeeTableRecords([$overdue])
-            ->assertCanNotSeeTableRecords([$inProgress, $returned])
+            ->assertCanNotSeeTableRecords([$inProgress, $returnedWithIncident])
             ->filterTable('status', Borrowing::STATUS_RETURNED)
-            ->assertCanSeeTableRecords([$returned])
-            ->assertCanNotSeeTableRecords([$inProgress, $overdue]);
+            ->assertCanSeeTableRecords([$returnedWithIncident])
+            ->assertCanNotSeeTableRecords([$inProgress, $overdue])
+            ->removeTableFilters()
+            ->filterTable('has_incidents', true)
+            ->assertCanSeeTableRecords([$returnedWithIncident])
+            ->assertCanNotSeeTableRecords([$inProgress, $overdue])
+            ->filterTable('has_incidents', false)
+            ->assertCanSeeTableRecords([$inProgress, $overdue])
+            ->assertCanNotSeeTableRecords([$returnedWithIncident])
+            ->removeTableFilters()
+            ->searchTable('UCH-PER-777')
+            ->assertCanSeeTableRecords([$inProgress])
+            ->assertCanNotSeeTableRecords([$returnedWithIncident, $overdue]);
     }
 
     /**
@@ -589,11 +607,10 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Solo los préstamos en estado En curso pueden editarse o devolverse: los préstamos
-     * Devuelto o Vencido deniegan update en policy, retornan 403 al editar, ocultan las
-     * acciones en tabla y son rechazados por BorrowingReturnService.
+     * Solo los préstamos En curso pueden editarse, mientras que la devolución está permitida
+     * tanto en En curso como en Vencido (y bloqueada en Devuelto).
      */
-    public function test_only_in_progress_borrowings_can_be_edited_or_returned(): void
+    public function test_edit_is_limited_to_in_progress_while_return_allows_in_progress_and_overdue(): void
     {
         $inProgress = Borrowing::factory()->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
         $returned = Borrowing::factory()->returned()->create();
@@ -605,6 +622,10 @@ class BorrowingResourceTest extends TestCase
         $this->assertTrue(Gate::forUser($user)->denies('update', $returned));
         $this->assertTrue(Gate::forUser($user)->denies('update', $overdue));
 
+        $this->assertTrue(Gate::forUser($user)->allows('registerReturn', $inProgress));
+        $this->assertTrue(Gate::forUser($user)->allows('registerReturn', $overdue));
+        $this->assertTrue(Gate::forUser($user)->denies('registerReturn', $returned));
+
         $this->get(BorrowingResource::getUrl('edit', ['record' => $inProgress]))->assertOk();
         $this->get(BorrowingResource::getUrl('edit', ['record' => $returned]))->assertForbidden();
         $this->get(BorrowingResource::getUrl('edit', ['record' => $overdue]))->assertForbidden();
@@ -612,21 +633,76 @@ class BorrowingResourceTest extends TestCase
         Livewire::test(ListBorrowings::class)
             ->assertActionVisible(TestAction::make('registerReturn')->table($inProgress))
             ->assertActionVisible(TestAction::make(EditAction::class)->table($inProgress))
+            ->assertActionVisible(TestAction::make('registerReturn')->table($overdue))
+            ->assertActionHidden(TestAction::make(EditAction::class)->table($overdue))
             ->assertActionHidden(TestAction::make('registerReturn')->table($returned))
-            ->assertActionHidden(TestAction::make(EditAction::class)->table($returned))
-            ->assertActionHidden(TestAction::make('registerReturn')->table($overdue))
-            ->assertActionHidden(TestAction::make(EditAction::class)->table($overdue));
+            ->assertActionHidden(TestAction::make(EditAction::class)->table($returned));
 
         $service = app(BorrowingReturnService::class);
 
-        foreach ([$returned, $overdue] as $blockedBorrowing) {
-            try {
-                $service->registerReturn($blockedBorrowing, []);
-                $this->fail('Se esperaba ValidationException al devolver un préstamo que no está En curso.');
-            } catch (ValidationException $exception) {
-                $this->assertArrayHasKey('borrowing', $exception->errors());
-            }
+        try {
+            $service->registerReturn($returned, []);
+            $this->fail('Se esperaba ValidationException al devolver un préstamo ya Devuelto.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('borrowing', $exception->errors());
         }
+
+        Livewire::test(ListBorrowings::class)
+            ->callAction(TestAction::make('registerReturn')->table($overdue))
+            ->assertHasNoFormErrors()
+            ->assertNotified('Devolución registrada');
+
+        $this->assertSame(Borrowing::STATUS_RETURNED, $overdue->fresh()->status);
+    }
+
+    /**
+     * Tanto el comando borrowings:mark-overdue como el ingreso a ListBorrowings marcan
+     * automáticamente como Vencido los préstamos En curso cuya due_date ya expiró,
+     * sin afectar préstamos vigentes, préstamos sin límite (Laptop/periféricos) ni Devueltos.
+     */
+    public function test_expired_in_progress_borrowings_are_automatically_marked_as_overdue(): void
+    {
+        $this->travelTo('2026-11-23 14:00:00');
+
+        $expiredComputerBorrowing = Borrowing::factory()->create([
+            'status' => Borrowing::STATUS_IN_PROGRESS,
+            'borrowing_date' => '2026-11-23 10:00:00',
+            'due_date' => '2026-11-23 12:00:00',
+        ]);
+        $activeComputerBorrowing = Borrowing::factory()->create([
+            'status' => Borrowing::STATUS_IN_PROGRESS,
+            'borrowing_date' => '2026-11-23 13:00:00',
+            'due_date' => '2026-11-23 15:00:00',
+        ]);
+        $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
+        $unlimitedLaptopBorrowing = Borrowing::factory()->for($laptop)->create([
+            'status' => Borrowing::STATUS_IN_PROGRESS,
+            'due_date' => null,
+        ]);
+        $alreadyReturned = Borrowing::factory()->returned()->create([
+            'due_date' => '2026-11-23 11:00:00',
+        ]);
+
+        $this->artisan('borrowings:mark-overdue')
+            ->assertSuccessful();
+
+        $this->assertSame(Borrowing::STATUS_OVERDUE, $expiredComputerBorrowing->fresh()->status);
+        $this->assertSame(Borrowing::STATUS_IN_PROGRESS, $activeComputerBorrowing->fresh()->status);
+        $this->assertSame(Borrowing::STATUS_IN_PROGRESS, $unlimitedLaptopBorrowing->fresh()->status);
+        $this->assertSame(Borrowing::STATUS_RETURNED, $alreadyReturned->fresh()->status);
+
+        $secondExpired = Borrowing::factory()->create([
+            'status' => Borrowing::STATUS_IN_PROGRESS,
+            'borrowing_date' => '2026-11-23 09:00:00',
+            'due_date' => '2026-11-23 11:00:00',
+        ]);
+
+        $this->signInWithPermissions('ViewAny_Borrowing');
+
+        Livewire::test(ListBorrowings::class)
+            ->assertCanSeeTableRecords([$secondExpired]);
+
+        $this->assertSame(Borrowing::STATUS_OVERDUE, $secondExpired->fresh()->status);
     }
 
     /**
