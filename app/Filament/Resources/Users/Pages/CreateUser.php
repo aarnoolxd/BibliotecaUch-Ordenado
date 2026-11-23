@@ -13,10 +13,14 @@ class CreateUser extends CreateRecord
     protected function getCreateFormAction(): Action
     {
         return parent::getCreateFormAction()
+            ->submit(null)
             ->requiresConfirmation()
             ->modalHeading('Confirmar creación de cuenta')
             ->modalDescription('¿Está seguro de que desea registrar esta nueva cuenta de usuario con los datos ingresados?')
-            ->modalSubmitActionLabel('Confirmar y Crear');
+            ->modalSubmitActionLabel('Confirmar y Crear')
+            ->action(function (): void {
+                $this->create();
+            });
     }
 
     protected function getCreatedNotificationTitle(): ?string
