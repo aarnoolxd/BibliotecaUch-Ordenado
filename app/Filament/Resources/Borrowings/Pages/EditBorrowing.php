@@ -32,10 +32,14 @@ class EditBorrowing extends EditRecord
      */
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        /** @var Borrowing $record */
-        $previousEquipmentId = (int) $record->equipment_id;
+        /** @var Borrowing $lockedRecord */
+        $lockedRecord = Borrowing::query()
+            ->lockForUpdate()
+            ->findOrFail($record->getKey());
+
+        $previousEquipmentId = (int) $lockedRecord->equipment_id;
         $nextEquipmentId = (int) ($data['equipment_id'] ?? $previousEquipmentId);
-        $isActiveBorrowing = in_array($record->status, Borrowing::ACTIVE_STATUSES, true);
+        $isActiveBorrowing = in_array($lockedRecord->status, Borrowing::ACTIVE_STATUSES, true);
 
         if ($isActiveBorrowing && $nextEquipmentId !== $previousEquipmentId) {
             $newEquipment = Equipment::query()
@@ -67,7 +71,7 @@ class EditBorrowing extends EditRecord
             }
         }
 
-        $updatedRecord = parent::handleRecordUpdate($record, $data);
+        $updatedRecord = parent::handleRecordUpdate($lockedRecord, $data);
 
         if ($isActiveBorrowing && $nextEquipmentId !== $previousEquipmentId) {
             Borrowing::releaseEquipmentIfNoActiveBorrowings(
@@ -75,6 +79,8 @@ class EditBorrowing extends EditRecord
                 ignoreBorrowingId: (int) $updatedRecord->getKey(),
             );
         }
+
+        $record->setRawAttributes($updatedRecord->getAttributes(), sync: true);
 
         return $updatedRecord;
     }

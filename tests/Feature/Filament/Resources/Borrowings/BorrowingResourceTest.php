@@ -447,6 +447,43 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
+     * Si dos solicitudes leen el mismo préstamo con el equipo A y la primera lo reasigna a B
+     * antes de que la segunda lo reasigne a C, handleRecordUpdate debe bloquear y recargar el
+     * préstamo desde la base de datos para liberar B y no dejarlo retenido como Prestado.
+     */
+    public function test_stale_borrowing_instance_reloads_locked_record_and_releases_current_equipment(): void
+    {
+        $equipmentA = Equipment::factory()->withStatus('Prestado')->create();
+        $equipmentB = Equipment::factory()->withStatus('Disponible')->create();
+        $equipmentC = Equipment::factory()->withStatus('Disponible')->create();
+        $borrowing = Borrowing::factory()->for($equipmentA)->create(['status' => 'En curso']);
+
+        $staleSecondInstance = Borrowing::query()->findOrFail($borrowing->getKey());
+
+        $page = new class extends EditBorrowing
+        {
+            /**
+             * @param  array<string, mixed>  $data
+             */
+            public function executeRecordUpdate(Borrowing $record, array $data): Borrowing
+            {
+                /** @var Borrowing $updated */
+                $updated = $this->handleRecordUpdate($record, $data);
+
+                return $updated;
+            }
+        };
+
+        $page->executeRecordUpdate($borrowing, ['equipment_id' => $equipmentB->getKey()]);
+        $page->executeRecordUpdate($staleSecondInstance, ['equipment_id' => $equipmentC->getKey()]);
+
+        $this->assertSame($equipmentC->getKey(), $borrowing->fresh()->equipment_id);
+        $this->assertSame('Disponible', $equipmentA->fresh()->status);
+        $this->assertSame('Disponible', $equipmentB->fresh()->status);
+        $this->assertSame('Prestado', $equipmentC->fresh()->status);
+    }
+
+    /**
      * Un usuario con Delete_Borrowing puede eliminar un préstamo activo desde la cabecera
      * de edición, devolviendo el equipo a Disponible si no tiene otro préstamo activo.
      */
