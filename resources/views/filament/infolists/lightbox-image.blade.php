@@ -78,11 +78,6 @@
                         alt="{{ $alt ?? 'Fotografía de evidencia' }}"
                         class="lightbox-full-img"
                     />
-                    @if (filled($caption ?? null))
-                        <figcaption class="lightbox-caption">
-                            {{ $caption }}
-                        </figcaption>
-                    @endif
                 </figure>
             </div>
         </template>
