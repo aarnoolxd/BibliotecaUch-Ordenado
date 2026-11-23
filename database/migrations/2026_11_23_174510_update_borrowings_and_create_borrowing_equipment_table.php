@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -32,6 +33,20 @@ return new class extends Migration
      */
     public function down(): void
     {
+        $missingEquipmentCount = DB::table('borrowings')
+            ->whereNull('equipment_id')
+            ->count();
+
+        $missingDueDateCount = DB::table('borrowings')
+            ->whereNull('due_date')
+            ->count();
+
+        if ($missingEquipmentCount > 0 || $missingDueDateCount > 0) {
+            throw new RuntimeException(
+                "No se puede revertir la migración de borrowings sin intervención manual: existen {$missingEquipmentCount} préstamo(s) sin equipment_id y {$missingDueDateCount} préstamo(s) sin due_date. Resuelva o migre esos registros antes de ejecutar el rollback."
+            );
+        }
+
         Schema::dropIfExists('borrowing_equipment');
 
         Schema::table('borrowings', function (Blueprint $table) {
