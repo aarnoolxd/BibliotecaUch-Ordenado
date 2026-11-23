@@ -66,7 +66,6 @@ class BorrowingResource extends Resource
             ->label('Ver')
             ->icon(Heroicon::OutlinedEye)
             ->color('primary')
-            ->link()
             ->modalHeading('Ficha del préstamo')
             ->modalDescription('Consulta los recursos asignados, cronología, observaciones e incidencias en un solo lugar.')
             ->modalWidth(Width::FourExtraLarge)

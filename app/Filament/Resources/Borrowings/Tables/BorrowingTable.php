@@ -7,6 +7,7 @@ use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Services\BorrowingReturnService;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
@@ -15,9 +16,11 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Support\Enums\Size;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -128,88 +131,95 @@ class BorrowingTable
                         Borrowing::STATUS_RETURNED => Borrowing::STATUS_RETURNED,
                         Borrowing::STATUS_OVERDUE => Borrowing::STATUS_OVERDUE,
                     ]),
-            ])
+            ], layout: FiltersLayout::AfterContentCollapsible)
             ->recordActions([
-                Action::make('registerReturn')
-                    ->label('Devolución')
-                    ->icon(Heroicon::OutlinedArrowUturnLeft)
-                    ->color('success')
-                    ->visible(fn (Borrowing $record): bool => $record->status === Borrowing::STATUS_IN_PROGRESS)
-                    ->authorize('update')
-                    ->modalHeading('Registrar devolución del préstamo')
-                    ->modalDescription('Indique si alguno de los dispositivos entregados presenta daños. Los equipos sin daños volverán a estar disponibles automáticamente.')
-                    ->modalWidth(Width::ThreeExtraLarge)
-                    ->modalSubmitActionLabel('Confirmar Devolución')
-                    ->fillForm(fn (Borrowing $record): array => [
-                        'items' => self::buildReturnItems($record),
-                    ])
-                    ->schema([
-                        Repeater::make('items')
-                            ->label('Dispositivos incluidos en el préstamo')
-                            ->addable(false)
-                            ->deletable(false)
-                            ->reorderable(false)
-                            ->itemLabel(fn (array $state): ?string => $state['equipment_label'] ?? null)
-                            ->schema([
-                                Hidden::make('equipment_id')
-                                    ->required(),
-                                Hidden::make('equipment_label')
-                                    ->dehydrated(false),
-                                Toggle::make('has_damage')
-                                    ->label('¿Presenta daños?')
-                                    ->helperText('Active esta opción únicamente si el dispositivo presenta daños o fallas al ser devuelto.')
-                                    ->default(false)
-                                    ->live(),
-                                Textarea::make('description')
-                                    ->label('Detalle del daño')
-                                    ->placeholder('Describa el daño o falla detectada al recibir el dispositivo...')
-                                    ->rows(2)
-                                    ->maxLength(500)
-                                    ->visible(fn (Get $get): bool => (bool) $get('has_damage'))
-                                    ->required(fn (Get $get): bool => (bool) $get('has_damage'))
-                                    ->validationMessages([
-                                        'required' => 'Debe describir el daño detectado en el recurso.',
-                                        'max' => 'El detalle del daño no puede superar los 500 caracteres.',
-                                    ]),
-                                FileUpload::make('photo')
-                                    ->label('Fotografía de evidencia')
-                                    ->helperText('Adjunte una fotografía en formato JPG o PNG (máx. 4 MB) que evidencie el daño.')
-                                    ->image()
-                                    ->acceptedFileTypes(['image/jpeg', 'image/png'])
-                                    ->maxSize(4096)
-                                    ->directory('borrowings/incidents')
-                                    ->visible(fn (Get $get): bool => (bool) $get('has_damage'))
-                                    ->required(fn (Get $get): bool => (bool) $get('has_damage'))
-                                    ->validationMessages([
-                                        'required' => 'Debe adjuntar una fotografía de evidencia del daño.',
-                                        'image' => 'El archivo debe ser una imagen válida.',
-                                        'max' => 'La fotografía no debe superar los 4 MB (4096 KB).',
-                                        'mimes' => 'La fotografía debe ser un archivo de formato JPG o PNG.',
-                                        'mimetypes' => 'La fotografía debe ser un archivo de formato JPG o PNG.',
-                                    ]),
-                            ]),
-                    ])
-                    ->action(function (Borrowing $record, array $data): void {
-                        $result = app(BorrowingReturnService::class)->registerReturn(
-                            borrowing: $record,
-                            evaluations: $data['items'] ?? [],
-                        );
+                ActionGroup::make([
+                    Action::make('registerReturn')
+                        ->label('Devolución')
+                        ->icon(Heroicon::OutlinedArrowUturnLeft)
+                        ->color('success')
+                        ->visible(fn (Borrowing $record): bool => $record->status === Borrowing::STATUS_IN_PROGRESS)
+                        ->authorize('update')
+                        ->modalHeading('Registrar devolución del préstamo')
+                        ->modalDescription('Indique si alguno de los dispositivos entregados presenta daños. Los equipos sin daños volverán a estar disponibles automáticamente.')
+                        ->modalWidth(Width::ThreeExtraLarge)
+                        ->modalSubmitActionLabel('Confirmar Devolución')
+                        ->fillForm(fn (Borrowing $record): array => [
+                            'items' => self::buildReturnItems($record),
+                        ])
+                        ->schema([
+                            Repeater::make('items')
+                                ->label('Dispositivos incluidos en el préstamo')
+                                ->addable(false)
+                                ->deletable(false)
+                                ->reorderable(false)
+                                ->itemLabel(fn (array $state): ?string => $state['equipment_label'] ?? null)
+                                ->schema([
+                                    Hidden::make('equipment_id')
+                                        ->required(),
+                                    Hidden::make('equipment_label')
+                                        ->dehydrated(false),
+                                    Toggle::make('has_damage')
+                                        ->label('¿Presenta daños?')
+                                        ->helperText('Active esta opción únicamente si el dispositivo presenta daños o fallas al ser devuelto.')
+                                        ->default(false)
+                                        ->live(),
+                                    Textarea::make('description')
+                                        ->label('Detalle del daño')
+                                        ->placeholder('Describa el daño o falla detectada al recibir el dispositivo...')
+                                        ->rows(2)
+                                        ->maxLength(500)
+                                        ->visible(fn (Get $get): bool => (bool) $get('has_damage'))
+                                        ->required(fn (Get $get): bool => (bool) $get('has_damage'))
+                                        ->validationMessages([
+                                            'required' => 'Debe describir el daño detectado en el recurso.',
+                                            'max' => 'El detalle del daño no puede superar los 500 caracteres.',
+                                        ]),
+                                    FileUpload::make('photo')
+                                        ->label('Fotografía de evidencia')
+                                        ->helperText('Adjunte una fotografía en formato JPG o PNG (máx. 4 MB) que evidencie el daño.')
+                                        ->image()
+                                        ->acceptedFileTypes(['image/jpeg', 'image/png'])
+                                        ->maxSize(4096)
+                                        ->directory('borrowings/incidents')
+                                        ->visible(fn (Get $get): bool => (bool) $get('has_damage'))
+                                        ->required(fn (Get $get): bool => (bool) $get('has_damage'))
+                                        ->validationMessages([
+                                            'required' => 'Debe adjuntar una fotografía de evidencia del daño.',
+                                            'image' => 'El archivo debe ser una imagen válida.',
+                                            'max' => 'La fotografía no debe superar los 4 MB (4096 KB).',
+                                            'mimes' => 'La fotografía debe ser un archivo de formato JPG o PNG.',
+                                            'mimetypes' => 'La fotografía debe ser un archivo de formato JPG o PNG.',
+                                        ]),
+                                ]),
+                        ])
+                        ->action(function (Borrowing $record, array $data): void {
+                            $result = app(BorrowingReturnService::class)->registerReturn(
+                                borrowing: $record,
+                                evaluations: $data['items'] ?? [],
+                            );
 
-                        $body = match (true) {
-                            $result['maintenance_count'] > 0 && $result['released_count'] > 0 => "Devolución registrada. {$result['released_count']} recurso(s) volvieron a Disponible y {$result['maintenance_count']} pasaron a Mantenimiento por daños reportados.",
-                            $result['maintenance_count'] > 0 => "Devolución registrada. {$result['maintenance_count']} recurso(s) pasaron a Mantenimiento debido a los daños reportados.",
-                            default => 'Devolución procesada con éxito. Todos los recursos volvieron a estado Disponible.',
-                        };
+                            $body = match (true) {
+                                $result['maintenance_count'] > 0 && $result['released_count'] > 0 => "Devolución registrada. {$result['released_count']} recurso(s) volvieron a Disponible y {$result['maintenance_count']} pasaron a Mantenimiento por daños reportados.",
+                                $result['maintenance_count'] > 0 => "Devolución registrada. {$result['maintenance_count']} recurso(s) pasaron a Mantenimiento debido a los daños reportados.",
+                                default => 'Devolución procesada con éxito. Todos los recursos volvieron a estado Disponible.',
+                            };
 
-                        Notification::make()
-                            ->title('Devolución registrada')
-                            ->body($body)
-                            ->success()
-                            ->send();
-                    }),
-                BorrowingResource::borrowingDetailsAction(),
-                EditAction::make()
-                    ->visible(fn (Borrowing $record): bool => $record->status === Borrowing::STATUS_IN_PROGRESS),
+                            Notification::make()
+                                ->title('Devolución registrada')
+                                ->body($body)
+                                ->success()
+                                ->send();
+                        }),
+                    BorrowingResource::borrowingDetailsAction(),
+                    EditAction::make()
+                        ->visible(fn (Borrowing $record): bool => $record->status === Borrowing::STATUS_IN_PROGRESS),
+                ])
+                    ->label('Acciones')
+                    ->icon(Heroicon::OutlinedEllipsisVertical)
+                    ->size(Size::Small)
+                    ->color('gray')
+                    ->button(),
             ])
             ->toolbarActions([
                 // All actions are defined
