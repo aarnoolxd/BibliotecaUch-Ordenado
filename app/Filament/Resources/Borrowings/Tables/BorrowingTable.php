@@ -70,7 +70,6 @@ class BorrowingTable
                 TextColumn::make('equipment.model')
                     ->label('Equipo Prestado')
                     ->placeholder('Sin equipo principal')
-                    ->description(fn(Borrowing $record): ?string => $record->equipment ? "{$record->equipment->type} - {$record->equipment->brand}" : null)
                     ->searchable()
                     ->sortable(),
 
@@ -134,7 +133,7 @@ class BorrowingTable
                     ->native(false),
             ], layout: FiltersLayout::Modal)
             ->filtersTriggerAction(
-                fn (Action $action): Action => $action
+                fn(Action $action): Action => $action
                     ->slideOver()
                     ->modalCancelAction(false),
             )
