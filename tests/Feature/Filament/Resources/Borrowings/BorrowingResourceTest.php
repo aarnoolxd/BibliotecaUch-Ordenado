@@ -923,9 +923,11 @@ class BorrowingResourceTest extends TestCase
         $mountedReturn = Livewire::test(ListBorrowings::class)
             ->mountAction(TestAction::make('registerReturn')->table($borrowing))
             ->assertMountedActionModalSee([
-                "Equipo principal — [{$laptop->patrimonial_code}] {$laptop->brand} {$laptop->model} ({$laptop->type})",
-                "Adicional — [{$mouse->patrimonial_code}] {$mouse->brand} {$mouse->model} ({$mouse->type})",
-            ]);
+                "[{$laptop->patrimonial_code}] {$laptop->brand} {$laptop->model}",
+                "[{$mouse->patrimonial_code}] {$mouse->brand} {$mouse->model}",
+            ])
+            ->assertMountedActionModalDontSee("({$laptop->type})")
+            ->assertMountedActionModalDontSee("({$mouse->type})");
 
         $livewireInstance = $mountedReturn->instance();
         $mountedSchema = $livewireInstance->getSchema($livewireInstance->getMountedActionSchemaName());

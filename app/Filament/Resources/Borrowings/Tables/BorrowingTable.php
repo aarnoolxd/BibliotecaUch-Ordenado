@@ -306,7 +306,7 @@ class BorrowingTable
         if ($record->equipment !== null) {
             $items[] = [
                 'equipment_id' => (int) $record->equipment->getKey(),
-                'equipment_label' => "Equipo principal — [{$record->equipment->patrimonial_code}] {$record->equipment->brand} {$record->equipment->model} ({$record->equipment->type})",
+                'equipment_label' => "[{$record->equipment->patrimonial_code}] {$record->equipment->brand} {$record->equipment->model}",
                 'has_damage' => false,
                 'description' => null,
                 'photo' => null,
@@ -316,7 +316,7 @@ class BorrowingTable
         foreach ($record->additionalEquipment as $additional) {
             $items[] = [
                 'equipment_id' => (int) $additional->getKey(),
-                'equipment_label' => "Adicional — [{$additional->patrimonial_code}] {$additional->brand} {$additional->model} ({$additional->type})",
+                'equipment_label' => "[{$additional->patrimonial_code}] {$additional->brand} {$additional->model}",
                 'has_damage' => false,
                 'description' => null,
                 'photo' => null,
