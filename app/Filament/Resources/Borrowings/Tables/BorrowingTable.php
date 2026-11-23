@@ -6,11 +6,7 @@ use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Services\BorrowingReturnService;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
@@ -24,7 +20,6 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 
 class BorrowingTable
 {
@@ -42,7 +37,7 @@ class BorrowingTable
                 TextColumn::make('profile.full_name')
                     ->label('Estudiante')
                     ->searchable(query: function (Builder $query, string $search): Builder {
-                        $term = '%'.mb_strtolower(trim($search)).'%';
+                        $term = '%' . mb_strtolower(trim($search)) . '%';
 
                         return $query->whereHas('profile', function (Builder $profileQuery) use ($term): void {
                             $profileQuery->whereRaw(
@@ -59,7 +54,7 @@ class BorrowingTable
                             ->orderBy('profiles.maternal_last_name', $direction)
                             ->select('borrowings.*');
                     })
-                    ->default(fn (Borrowing $record): string => $record->profile?->full_name ?? 'Estudiante no vinculado')
+                    ->default(fn(Borrowing $record): string => $record->profile?->full_name ?? 'Estudiante no vinculado')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('equipment.patrimonial_code')
@@ -71,30 +66,20 @@ class BorrowingTable
                 TextColumn::make('equipment.model')
                     ->label('Equipo Prestado')
                     ->placeholder('Sin equipo principal')
-                    ->description(fn (Borrowing $record): ?string => $record->equipment ? "{$record->equipment->type} - {$record->equipment->brand}" : null)
+                    ->description(fn(Borrowing $record): ?string => $record->equipment ? "{$record->equipment->type} - {$record->equipment->brand}" : null)
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('additional_equipment_labels')
                     ->label('Periféricos / Otros')
-                    ->state(fn (Borrowing $record): array => $record->additionalEquipment
-                        ->map(fn (Equipment $item): string => "[{$item->patrimonial_code}] {$item->model}")
+                    ->state(fn(Borrowing $record): array => $record->additionalEquipment
+                        ->map(fn(Equipment $item): string => "{$item->model}")
                         ->all())
                     ->badge()
                     ->color('gray')
                     ->limitList(2)
                     ->expandableLimitedList()
                     ->placeholder('—')
-                    ->searchable(query: function (Builder $query, string $search): Builder {
-                        $term = '%'.mb_strtolower(trim($search)).'%';
-
-                        return $query->whereHas('additionalEquipment', function (Builder $equipmentQuery) use ($term): void {
-                            $equipmentQuery->whereRaw(
-                                "LOWER(COALESCE(patrimonial_code, '') || ' ' || COALESCE(brand, '') || ' ' || COALESCE(model, '')) LIKE ?",
-                                [$term],
-                            );
-                        });
-                    })
                     ->toggleable(),
 
                 TextColumn::make('borrowing_date')
@@ -118,7 +103,7 @@ class BorrowingTable
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn(string $state): string => match ($state) {
                         Borrowing::STATUS_IN_PROGRESS => 'info',
                         Borrowing::STATUS_RETURNED => 'success',
                         Borrowing::STATUS_OVERDUE => 'danger',
@@ -131,11 +116,8 @@ class BorrowingTable
                     ->placeholder('Sin observaciones')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultPaginationPageOption(15)
-            ->paginationPageOptions([10, 15, 25, 50])
-            ->striped()
             ->defaultSort('created_at', 'desc')
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['equipment', 'additionalEquipment', 'profile']))
+            ->modifyQueryUsing(fn(Builder $query): Builder => $query->with(['equipment', 'additionalEquipment', 'profile']))
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado del préstamo')
@@ -151,13 +133,13 @@ class BorrowingTable
                     ->label('Registrar Devolución')
                     ->icon(Heroicon::OutlinedArrowUturnLeft)
                     ->color('success')
-                    ->visible(fn (Borrowing $record): bool => in_array($record->status, Borrowing::ACTIVE_STATUSES, true))
+                    ->visible(fn(Borrowing $record): bool => in_array($record->status, Borrowing::ACTIVE_STATUSES, true))
                     ->authorize('update')
                     ->modalHeading('Registrar devolución del préstamo')
                     ->modalDescription('Indique si alguno de los dispositivos entregados presenta daños. Los equipos sin daños volverán a estar disponibles automáticamente.')
                     ->modalWidth(Width::ThreeExtraLarge)
                     ->modalSubmitActionLabel('Confirmar Devolución')
-                    ->fillForm(fn (Borrowing $record): array => [
+                    ->fillForm(fn(Borrowing $record): array => [
                         'items' => self::buildReturnItems($record),
                     ])
                     ->schema([
@@ -166,7 +148,7 @@ class BorrowingTable
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
-                            ->itemLabel(fn (array $state): ?string => $state['equipment_label'] ?? null)
+                            ->itemLabel(fn(array $state): ?string => $state['equipment_label'] ?? null)
                             ->schema([
                                 Hidden::make('equipment_id')
                                     ->required(),
@@ -182,8 +164,8 @@ class BorrowingTable
                                     ->placeholder('Describa el daño o falla detectada al recibir el dispositivo...')
                                     ->rows(2)
                                     ->maxLength(500)
-                                    ->visible(fn (Get $get): bool => (bool) $get('has_damage'))
-                                    ->required(fn (Get $get): bool => (bool) $get('has_damage'))
+                                    ->visible(fn(Get $get): bool => (bool)$get('has_damage'))
+                                    ->required(fn(Get $get): bool => (bool)$get('has_damage'))
                                     ->validationMessages([
                                         'required' => 'Debe describir el daño detectado en el recurso.',
                                         'max' => 'El detalle del daño no puede superar los 500 caracteres.',
@@ -195,8 +177,8 @@ class BorrowingTable
                                     ->acceptedFileTypes(['image/jpeg', 'image/png'])
                                     ->maxSize(4096)
                                     ->directory('borrowings/incidents')
-                                    ->visible(fn (Get $get): bool => (bool) $get('has_damage'))
-                                    ->required(fn (Get $get): bool => (bool) $get('has_damage'))
+                                    ->visible(fn(Get $get): bool => (bool)$get('has_damage'))
+                                    ->required(fn(Get $get): bool => (bool)$get('has_damage'))
                                     ->validationMessages([
                                         'required' => 'Debe adjuntar una fotografía de evidencia del daño.',
                                         'image' => 'El archivo debe ser una imagen válida.',
@@ -224,52 +206,11 @@ class BorrowingTable
                             ->success()
                             ->send();
                     }),
-                ViewAction::make(),
                 EditAction::make(),
-                DeleteAction::make()
-                    ->label('Eliminar')
-                    ->requiresConfirmation()
-                    ->modalHeading('Eliminar registro de préstamo')
-                    ->modalDescription('Esta acción es irreversible. ¿Desea eliminar permanentemente este registro?')
-                    ->modalSubmitActionLabel('Sí, eliminar')
-                    ->before(function (Borrowing $record, DeleteAction $action): void {
-                        if ($record->status === Borrowing::STATUS_RETURNED) {
-                            Notification::make()
-                                ->title('No se puede eliminar')
-                                ->body('Este préstamo ya tiene una devolución registrada y no puede eliminarse.')
-                                ->danger()
-                                ->send();
-                            $action->cancel();
-                        }
-                    })
-                    ->successNotificationTitle('Registro de préstamo eliminado correctamente.'),
             ])
             ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make()
-                        ->before(function (Collection $records, DeleteBulkAction $action): void {
-                            if ($records->contains(fn (Borrowing $record): bool => $record->status === Borrowing::STATUS_RETURNED)) {
-                                Notification::make()
-                                    ->title('No se pueden eliminar préstamos devueltos')
-                                    ->body('La selección incluye préstamos ya devueltos que deben conservarse en el historial.')
-                                    ->danger()
-                                    ->send();
-                                $action->cancel();
-                            }
-                        }),
-                ]),
-                Action::make('resetFilters')
-                    ->label('Restablecer filtros')
-                    ->icon(Heroicon::OutlinedArrowPath)
-                    ->color('gray')
-                    ->action(function (mixed $livewire): void {
-                        $livewire->resetTableFiltersForm();
-                        $livewire->resetTableSearch();
-                    }),
-            ])
-            ->emptyStateHeading('No se encontraron préstamos')
-            ->emptyStateDescription('No hay préstamos que coincidan con los filtros actuales.')
-            ->emptyStateIcon(Heroicon::OutlinedBookmarkSlash);
+                // All actions are defined
+            ]);
     }
 
     /**
@@ -285,7 +226,7 @@ class BorrowingTable
 
         if ($record->equipment !== null) {
             $items[] = [
-                'equipment_id' => (int) $record->equipment->getKey(),
+                'equipment_id' => (int)$record->equipment->getKey(),
                 'equipment_label' => "Equipo principal — [{$record->equipment->patrimonial_code}] {$record->equipment->brand} {$record->equipment->model} ({$record->equipment->type})",
                 'has_damage' => false,
                 'description' => null,
@@ -295,7 +236,7 @@ class BorrowingTable
 
         foreach ($record->additionalEquipment as $additional) {
             $items[] = [
-                'equipment_id' => (int) $additional->getKey(),
+                'equipment_id' => (int)$additional->getKey(),
                 'equipment_label' => "Adicional — [{$additional->patrimonial_code}] {$additional->brand} {$additional->model} ({$additional->type})",
                 'has_damage' => false,
                 'description' => null,
