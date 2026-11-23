@@ -898,8 +898,7 @@ class BorrowingResourceTest extends TestCase
 
         $this->assertSame(Borrowing::STATUS_RETURNED, $borrowing->status);
         $this->assertNotNull($borrowing->return_date);
-        $this->assertStringContainsString('Entregado completo.', (string) $borrowing->observations);
-        $this->assertStringContainsString('[Incidencia - UCH-PER-200]: Botón izquierdo hundido y cable pelado.', (string) $borrowing->observations);
+        $this->assertSame('Entregado completo.', $borrowing->observations);
         $this->assertSame('Disponible', $laptop->fresh()->status);
         $this->assertSame('Mantenimiento', $mouse->fresh()->status);
 
