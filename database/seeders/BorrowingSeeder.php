@@ -30,6 +30,12 @@ class BorrowingSeeder extends Seeder
             );
         }
 
+        $now = now();
+        $activeComputerDate = $now->copy()->subMinutes(45);
+        $overdueComputerDate = $now->copy()->subHours(4);
+        $returnedComputerDate = $now->copy()->subDays(2);
+        $returnedLaptopDate = $now->copy()->subDays(3);
+
         /**
          * @var list<array{
          *     primary_code: ?string,
@@ -51,8 +57,8 @@ class BorrowingSeeder extends Seeder
                 'additional_codes' => ['UCH-EQ-00005'],
                 'student_dni' => '70000005',
                 'registered_by_email' => 'coordinador@example.com',
-                'borrowing_date' => now()->subMinutes(45),
-                'due_date' => now()->subMinutes(45)->addHours(2),
+                'borrowing_date' => $activeComputerDate,
+                'due_date' => $activeComputerDate->copy()->addHours(2),
                 'return_date' => null,
                 'status' => Borrowing::STATUS_IN_PROGRESS,
                 'observations' => 'Préstamo activo en sala de lectura con mouse inalámbrico.',
@@ -64,7 +70,7 @@ class BorrowingSeeder extends Seeder
                 'additional_codes' => [],
                 'student_dni' => '70000006',
                 'registered_by_email' => 'ayudante@example.com',
-                'borrowing_date' => now()->subHours(3),
+                'borrowing_date' => $now->copy()->subHours(3),
                 'due_date' => null,
                 'return_date' => null,
                 'status' => Borrowing::STATUS_IN_PROGRESS,
@@ -77,7 +83,7 @@ class BorrowingSeeder extends Seeder
                 'additional_codes' => ['UCH-EQ-00009', 'UCH-EQ-00010'],
                 'student_dni' => '70000007',
                 'registered_by_email' => 'ayudante@example.com',
-                'borrowing_date' => now()->subHour(),
+                'borrowing_date' => $now->copy()->subHour(),
                 'due_date' => null,
                 'return_date' => null,
                 'status' => Borrowing::STATUS_IN_PROGRESS,
@@ -90,8 +96,8 @@ class BorrowingSeeder extends Seeder
                 'additional_codes' => [],
                 'student_dni' => '70000004',
                 'registered_by_email' => 'admin@example.com',
-                'borrowing_date' => now()->subHours(4),
-                'due_date' => now()->subHours(2),
+                'borrowing_date' => $overdueComputerDate,
+                'due_date' => $overdueComputerDate->copy()->addHours(2),
                 'return_date' => null,
                 'status' => Borrowing::STATUS_OVERDUE,
                 'observations' => 'Préstamo de computadora vencido pendiente de devolución.',
@@ -103,9 +109,9 @@ class BorrowingSeeder extends Seeder
                 'additional_codes' => [],
                 'student_dni' => '70000006',
                 'registered_by_email' => 'ayudante@example.com',
-                'borrowing_date' => now()->subDays(2),
-                'due_date' => now()->subDays(2)->addHours(2),
-                'return_date' => now()->subDays(2)->addMinutes(95),
+                'borrowing_date' => $returnedComputerDate,
+                'due_date' => $returnedComputerDate->copy()->addHours(2),
+                'return_date' => $returnedComputerDate->copy()->addMinutes(95),
                 'status' => Borrowing::STATUS_RETURNED,
                 'observations' => 'Devuelto en óptimas condiciones.',
                 'incidents' => [],
@@ -116,9 +122,9 @@ class BorrowingSeeder extends Seeder
                 'additional_codes' => ['UCH-EQ-00014'],
                 'student_dni' => '70000008',
                 'registered_by_email' => 'coordinador@example.com',
-                'borrowing_date' => now()->subDays(3),
+                'borrowing_date' => $returnedLaptopDate,
                 'due_date' => null,
-                'return_date' => now()->subDays(2),
+                'return_date' => $returnedLaptopDate->copy()->addDay(),
                 'status' => Borrowing::STATUS_RETURNED,
                 'observations' => 'Préstamo docente para exposición en auditorio.',
                 'incidents' => [
