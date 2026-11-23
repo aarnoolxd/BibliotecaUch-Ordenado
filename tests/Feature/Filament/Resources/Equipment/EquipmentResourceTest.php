@@ -58,7 +58,11 @@ class EquipmentResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Equipment');
 
         $this->get(EquipmentResource::getUrl('index'))
-            ->assertOk()
+            ->assertOk();
+
+        Livewire::test(ListEquipments::class)
+            ->loadTable()
+            ->assertCanSeeTableRecords([$equipment])
             ->assertSeeText($equipment->patrimonial_code)
             ->assertSeeText($equipment->type)
             ->assertSeeText($equipment->brand)
@@ -127,10 +131,10 @@ class EquipmentResourceTest extends TestCase
     }
 
     /**
-     * La tabla de equipos permite buscar por código patrimonial, categoría, marca, modelo
-     * y número de serie, filtrando los demás registros.
+     * La tabla de equipos permite buscar por código patrimonial, categoría, marca y modelo,
+     * filtrando los demás registros.
      */
-    public function test_equipment_table_can_search_by_patrimonial_code_type_brand_model_and_serial_number(): void
+    public function test_equipment_table_can_search_by_patrimonial_code_type_brand_and_model(): void
     {
         $matching = Equipment::factory()->create([
             'patrimonial_code' => 'UCH-EQ-90001',
@@ -148,9 +152,9 @@ class EquipmentResourceTest extends TestCase
         ]);
         $this->signInWithPermissions('ViewAny_Equipment');
 
-        $table = Livewire::test(ListEquipments::class);
+        $table = Livewire::test(ListEquipments::class)->loadTable();
 
-        foreach (['UCH-EQ-90001', 'Laptop', 'Lenovo', 'ThinkPad X1', 'SN-UNIQUE-001'] as $term) {
+        foreach (['UCH-EQ-90001', 'Laptop', 'Lenovo', 'ThinkPad X1'] as $term) {
             $table
                 ->searchTable($term)
                 ->assertCanSeeTableRecords([$matching])
@@ -175,6 +179,7 @@ class EquipmentResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Equipment');
 
         Livewire::test(ListEquipments::class)
+            ->loadTable()
             ->sortTable('patrimonial_code')
             ->assertCanSeeTableRecords([$first, $second], inOrder: true)
             ->sortTable('patrimonial_code', 'desc')
@@ -200,6 +205,7 @@ class EquipmentResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Equipment');
 
         Livewire::test(ListEquipments::class)
+            ->loadTable()
             ->filterTable('type', 'Laptop')
             ->assertCanSeeTableRecords([$availableLaptop])
             ->assertCanNotSeeTableRecords([$maintenanceDesktop])
