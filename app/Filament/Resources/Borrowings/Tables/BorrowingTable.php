@@ -9,6 +9,7 @@ use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class BorrowingTable
 {
@@ -25,8 +26,23 @@ class BorrowingTable
 
                 TextColumn::make('profile.full_name')
                     ->label('Estudiante')
-                    ->searchable()
-                    ->sortable()
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        $term = '%'.mb_strtolower(trim($search)).'%';
+
+                        return $query->whereHas('profile', function (Builder $profileQuery) use ($term): void {
+                            $profileQuery->whereRaw(
+                                "LOWER(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) LIKE ?",
+                                [$term],
+                            );
+                        });
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query
+                            ->leftJoin('profiles', 'profiles.id', '=', 'borrowings.profile_id')
+                            ->orderBy('profiles.first_name', $direction)
+                            ->orderBy('profiles.last_name', $direction)
+                            ->select('borrowings.*');
+                    })
                     ->default(fn ($record) => $record->profile?->full_name ?? 'Estudiante no vinculado'),
 
                 TextColumn::make('equipment.patrimonial_code')
@@ -54,10 +70,10 @@ class BorrowingTable
                     ->label('Estado')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'En curso'  => 'info',
-                        'Devuelto'  => 'success',
-                        'Vencido'   => 'danger',
-                        default     => 'gray',
+                        'En curso' => 'info',
+                        'Devuelto' => 'success',
+                        'Vencido' => 'danger',
+                        default => 'gray',
                     }),
             ])
             ->defaultSort('created_at', 'desc')
@@ -67,7 +83,7 @@ class BorrowingTable
                     ->options([
                         'En curso' => 'En curso',
                         'Devuelto' => 'Devuelto',
-                        'Vencido'  => 'Vencido',
+                        'Vencido' => 'Vencido',
                     ]),
             ])
             ->recordActions([
