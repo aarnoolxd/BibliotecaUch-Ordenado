@@ -41,9 +41,13 @@ return new class extends Migration
             ->whereNull('due_date')
             ->count();
 
-        if ($missingEquipmentCount > 0 || $missingDueDateCount > 0) {
+        $additionalAssignmentsCount = Schema::hasTable('borrowing_equipment')
+            ? DB::table('borrowing_equipment')->count()
+            : 0;
+
+        if ($missingEquipmentCount > 0 || $missingDueDateCount > 0 || $additionalAssignmentsCount > 0) {
             throw new RuntimeException(
-                "No se puede revertir la migración de borrowings sin intervención manual: existen {$missingEquipmentCount} préstamo(s) sin equipment_id y {$missingDueDateCount} préstamo(s) sin due_date. Resuelva o migre esos registros antes de ejecutar el rollback."
+                "No se puede revertir la migración de borrowings sin intervención manual: existen {$missingEquipmentCount} préstamo(s) sin equipment_id, {$missingDueDateCount} préstamo(s) sin due_date y {$additionalAssignmentsCount} asignación(es) de equipos adicionales en borrowing_equipment. Resuelva o migre esos registros antes de ejecutar el rollback."
             );
         }
 

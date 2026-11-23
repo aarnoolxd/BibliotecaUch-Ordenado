@@ -16,32 +16,37 @@ class BorrowingsSchemaMigrationTest extends TestCase
     use LazilyRefreshDatabase;
 
     /**
-     * Si existen préstamos con equipment_id nulo (solo periféricos) o due_date nula (Laptop),
-     * la reversión de la migración debe detenerse antes de eliminar borrowing_equipment o alterar borrowings.
+     * Cada condición incompatible (equipment_id nulo, due_date nula o asignaciones en
+     * borrowing_equipment) debe detener de forma independiente la reversión antes de
+     * ejecutar operaciones destructivas.
      */
     public function test_rollback_aborts_before_destructive_changes_when_incompatible_borrowings_exist(): void
     {
         $migration = $this->loadMigration();
 
-        $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
-        $peripheralsOnly = Borrowing::factory()
+        // 1. Solo equipment_id nulo (due_date explícita y sin filas en borrowing_equipment)
+        $missingEquipmentBorrowing = Borrowing::factory()
             ->withoutPrimaryEquipment()
-            ->withAdditionalEquipment($mouse)
-            ->create();
+            ->create([
+                'borrowing_date' => '2026-11-23 10:00:00',
+                'due_date' => '2026-11-23 12:00:00',
+            ]);
 
         try {
             $migration->down();
             $this->fail('Se esperaba RuntimeException al intentar revertir con préstamos sin equipment_id.');
         } catch (RuntimeException $exception) {
             $this->assertStringContainsString('1 préstamo(s) sin equipment_id', $exception->getMessage());
+            $this->assertStringContainsString('0 préstamo(s) sin due_date', $exception->getMessage());
+            $this->assertStringContainsString('0 asignación(es)', $exception->getMessage());
         }
 
         $this->assertTrue(Schema::hasTable('borrowing_equipment'));
-        $this->assertSame(1, DB::table('borrowing_equipment')->count());
-        $this->assertModelExists($peripheralsOnly);
+        $this->assertModelExists($missingEquipmentBorrowing);
 
-        $peripheralsOnly->delete();
+        $missingEquipmentBorrowing->delete();
 
+        // 2. Solo due_date nula (equipment_id presente y sin filas en borrowing_equipment)
         $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
         $unlimitedLaptopBorrowing = Borrowing::factory()
             ->for($laptop)
@@ -53,10 +58,37 @@ class BorrowingsSchemaMigrationTest extends TestCase
         } catch (RuntimeException $exception) {
             $this->assertStringContainsString('0 préstamo(s) sin equipment_id', $exception->getMessage());
             $this->assertStringContainsString('1 préstamo(s) sin due_date', $exception->getMessage());
+            $this->assertStringContainsString('0 asignación(es)', $exception->getMessage());
         }
 
         $this->assertTrue(Schema::hasTable('borrowing_equipment'));
         $this->assertModelExists($unlimitedLaptopBorrowing);
+
+        $unlimitedLaptopBorrowing->delete();
+
+        // 3. Solo asignaciones en borrowing_equipment (equipment_id y due_date presentes)
+        $computer = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
+        $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
+        $borrowingWithAdditional = Borrowing::factory()
+            ->for($computer)
+            ->withAdditionalEquipment($mouse)
+            ->create([
+                'borrowing_date' => '2026-11-23 10:00:00',
+                'due_date' => '2026-11-23 12:00:00',
+            ]);
+
+        try {
+            $migration->down();
+            $this->fail('Se esperaba RuntimeException al intentar revertir con asignaciones en borrowing_equipment.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('0 préstamo(s) sin equipment_id', $exception->getMessage());
+            $this->assertStringContainsString('0 préstamo(s) sin due_date', $exception->getMessage());
+            $this->assertStringContainsString('1 asignación(es)', $exception->getMessage());
+        }
+
+        $this->assertTrue(Schema::hasTable('borrowing_equipment'));
+        $this->assertSame(1, DB::table('borrowing_equipment')->count());
+        $this->assertModelExists($borrowingWithAdditional);
     }
 
     /**
