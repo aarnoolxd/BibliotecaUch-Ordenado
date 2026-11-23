@@ -6,11 +6,15 @@ use App\Filament\Resources\Profiles\Pages\CreateProfile;
 use App\Filament\Resources\Profiles\Pages\EditProfile;
 use App\Filament\Resources\Profiles\Pages\ListProfiles;
 use App\Filament\Resources\Profiles\Schemas\ProfileForm;
+use App\Filament\Resources\Profiles\Schemas\ProfileInfolist;
 use App\Filament\Resources\Profiles\Tables\ProfilesTable;
 use App\Models\Profile;
 use BackedEnum;
+use Filament\Actions\Action;
+use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use UnitEnum;
@@ -20,12 +24,15 @@ class ProfileResource extends Resource
     protected static ?string $model = Profile::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;
+
     protected static string|BackedEnum|null $activeNavigationIcon = Heroicon::Identification;
 
     protected static string|UnitEnum|null $navigationGroup = 'Gestión de Perfiles';
+
     protected static ?int $navigationSort = 1;
 
     protected static ?string $modelLabel = 'Perfil';
+
     protected static ?string $pluralModelLabel = 'Módulo Perfiles';
 
     public static function getModelLabel(): string
@@ -46,6 +53,26 @@ class ProfileResource extends Resource
     public static function table(Table $table): Table
     {
         return ProfilesTable::configure($table);
+    }
+
+    public static function infolist(Schema $schema): Schema
+    {
+        return ProfileInfolist::configure($schema);
+    }
+
+    public static function profileDetailsAction(): ViewAction
+    {
+        return ViewAction::make()
+            ->label('Ver')
+            ->icon(Heroicon::OutlinedEye)
+            ->color('primary')
+            ->link()
+            ->modalHeading('Ficha del perfil')
+            ->modalDescription('Consulta los datos personales, académicos y de contacto en un solo lugar.')
+            ->modalWidth(Width::FourExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalCancelAction(fn (Action $action): Action => $action->label('Cerrar ficha'));
     }
 
     public static function getRelations(): array
