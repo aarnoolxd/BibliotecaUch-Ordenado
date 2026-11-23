@@ -14,7 +14,7 @@
     gap: 0.65rem;
 }
 
-.profile-sheet-eyebrow .fi-in-text-item {
+.profile-sheet-eyebrow.fi-in-text-item {
     color: #64748b;
     font-size: 0.65rem;
     font-weight: 700;
@@ -22,7 +22,7 @@
     line-height: 1.6;
 }
 
-.profile-sheet-name .fi-in-text-item {
+.profile-sheet-name.fi-in-text-item {
     color: #0a2d5f;
     font-size: clamp(1.5rem, 3vw, 2rem);
     font-weight: 750;
@@ -36,7 +36,7 @@
     box-shadow: 0 6px 20px #0a2d5f18;
 }
 
-.profile-sheet-initials .fi-in-text-item {
+.profile-sheet-initials.fi-in-text-item {
     display: flex;
     align-items: center;
     justify-content: center;
