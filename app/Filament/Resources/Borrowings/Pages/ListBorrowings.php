@@ -13,6 +13,8 @@ class ListBorrowings extends ListRecords
 
     public function mount(): void
     {
+        static::authorizeResourceAccess();
+
         Borrowing::markOverdueBorrowings();
 
         parent::mount();
