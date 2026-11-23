@@ -188,33 +188,39 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * La tabla de préstamos permite ordenar por DNI del estudiante y fecha límite de devolución.
+     * La tabla de préstamos permite ordenar por DNI del estudiante y fecha límite de devolución,
+     * comprobando un orden de vencimiento distinto al orden ascendente y descendente por DNI.
      */
     public function test_borrowings_table_can_sort_by_student_dni_and_due_date(): void
     {
         $firstProfile = Profile::factory()->create(['dni' => '70000010']);
         $secondProfile = Profile::factory()->create(['dni' => '70000020']);
+        $thirdProfile = Profile::factory()->create(['dni' => '70000030']);
 
         $first = Borrowing::factory()->for($firstProfile)->create([
-            'due_date' => now()->addDays(2),
+            'due_date' => now()->addDays(3),
         ]);
         $second = Borrowing::factory()->for($secondProfile)->create([
             'due_date' => now()->addDay(),
+        ]);
+        $third = Borrowing::factory()->for($thirdProfile)->create([
+            'due_date' => now()->addDays(2),
         ]);
         $this->signInWithPermissions('ViewAny_Borrowing');
 
         Livewire::test(ListBorrowings::class)
             ->sortTable('student_dni')
-            ->assertCanSeeTableRecords([$first, $second], inOrder: true)
+            ->assertCanSeeTableRecords([$first, $second, $third], inOrder: true)
             ->sortTable('student_dni', 'desc')
-            ->assertCanSeeTableRecords([$second, $first], inOrder: true)
+            ->assertCanSeeTableRecords([$third, $second, $first], inOrder: true)
             ->sortTable('due_date')
-            ->assertCanSeeTableRecords([$second, $first], inOrder: true);
+            ->assertCanSeeTableRecords([$second, $third, $first], inOrder: true);
     }
 
     /**
      * Al ingresar un DNI registrado en el formulario, deben autocompletarse profile_id
-     * y student_name; al cambiarlo por un DNI inexistente o vacío, ambos deben limpiarse.
+     * y student_name; al cambiarlo por un DNI inexistente o vaciarlo desde un estado cargado,
+     * ambos campos deben limpiarse.
      */
     public function test_entering_a_registered_student_dni_populates_profile_and_name_and_clearing_resets_them(): void
     {
@@ -232,6 +238,9 @@ class BorrowingResourceTest extends TestCase
             ->set('data.student_dni', '79999999')
             ->assertSet('data.profile_id', null)
             ->assertSet('data.student_name', null)
+            ->set('data.student_dni', '72223333')
+            ->assertSet('data.profile_id', $profile->getKey())
+            ->assertSet('data.student_name', 'Lucia Rojas Paredes')
             ->set('data.student_dni', '')
             ->assertSet('data.profile_id', null)
             ->assertSet('data.student_name', null);
@@ -295,8 +304,9 @@ class BorrowingResourceTest extends TestCase
 
     /**
      * Un usuario con Create_Borrowing puede registrar un préstamo para un estudiante y equipo
-     * disponibles: se asigna estado En curso, registered_by, fecha límite, se cambia el equipo
-     * a Prestado, se notifica y se redirige al listado.
+     * disponibles: se aplica la regla de vencimiento del tipo de equipo incluso ante un valor
+     * manual distinto, se asigna estado En curso, registered_by, se cambia el equipo a Prestado,
+     * se notifica y se redirige al listado.
      */
     public function test_a_user_with_create_permission_can_create_a_borrowing_and_marks_equipment_as_prestado(): void
     {
@@ -315,7 +325,7 @@ class BorrowingResourceTest extends TestCase
                 'student_dni' => '73334444',
                 'equipment_id' => $equipment->getKey(),
                 'borrowing_date' => '2026-11-23 09:00:00',
-                'due_date' => '2026-11-25 09:00:00',
+                'due_date' => '2026-11-24 09:00:00',
                 'observations' => 'Entregada con cargador original.',
             ])
             ->call('create')
@@ -337,18 +347,49 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con Update_Borrowing puede editar un préstamo cuyo equipo esté Disponible
-     * y actualizar sus observaciones y fecha límite.
+     * Si el equipo cambia a Mantenimiento antes de completar el alta, CreateBorrowing
+     * debe rechazar el guardado asociando el error al campo data.equipment_id.
      */
-    public function test_a_user_with_update_permission_can_edit_a_borrowing_when_equipment_is_disponible(): void
+    public function test_create_borrowing_hook_attaches_validation_error_to_form_field_when_equipment_becomes_unavailable(): void
+    {
+        $profile = Profile::factory()->create(['dni' => '73339999']);
+        $equipment = Equipment::factory()->withStatus('Disponible')->create([
+            'brand' => 'HP',
+            'model' => 'ProBook 450',
+        ]);
+        $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
+
+        $component = Livewire::test(CreateBorrowing::class)
+            ->fillForm([
+                'student_dni' => $profile->dni,
+                'equipment_id' => $equipment->getKey(),
+                'borrowing_date' => '2026-11-23 09:00:00',
+                'due_date' => '2026-11-24 09:00:00',
+            ]);
+
+        $equipment->update(['status' => 'Mantenimiento']);
+
+        $component
+            ->call('create')
+            ->assertHasFormErrors(['equipment_id']);
+
+        $this->assertDatabaseCount('borrowings', 0);
+        $this->assertSame('Mantenimiento', $equipment->fresh()->status);
+    }
+
+    /**
+     * Un usuario con Update_Borrowing puede editar un préstamo activo conservando su
+     * propio equipo Prestado y actualizar sus observaciones y fecha límite.
+     */
+    public function test_a_user_with_update_permission_can_edit_an_active_borrowing_keeping_its_equipment(): void
     {
         $profile = Profile::factory()->create(['dni' => '74445555']);
-        $equipment = Equipment::factory()->withStatus('Disponible')->create();
+        $equipment = Equipment::factory()->withStatus('Prestado')->create();
         $borrowing = Borrowing::factory()
             ->for($equipment)
             ->for($profile)
-            ->returned()
             ->create([
+                'status' => 'En curso',
                 'borrowing_date' => '2026-11-20 09:00:00',
                 'due_date' => '2026-11-21 09:00:00',
                 'observations' => 'Observación inicial.',
@@ -371,14 +412,48 @@ class BorrowingResourceTest extends TestCase
 
         $this->assertSame('2026-11-22 09:00:00', $borrowing->due_date->format('Y-m-d H:i:s'));
         $this->assertSame('Observación actualizada.', $borrowing->observations);
+        $this->assertSame('Prestado', $equipment->fresh()->status);
     }
 
     /**
-     * Un usuario con Delete_Borrowing puede eliminar un préstamo desde la cabecera de edición.
+     * Al reasignar el equipo de un préstamo activo de A a B, el equipo B pasa a Prestado
+     * y el equipo A regresa a Disponible si no posee otro préstamo activo.
+     */
+    public function test_changing_equipment_on_an_active_borrowing_syncs_both_equipment_statuses(): void
+    {
+        $profile = Profile::factory()->create(['dni' => '74446666']);
+        $previousEquipment = Equipment::factory()->withStatus('Prestado')->create();
+        $newEquipment = Equipment::factory()->withStatus('Disponible')->create();
+        $borrowing = Borrowing::factory()
+            ->for($previousEquipment)
+            ->for($profile)
+            ->create(['status' => 'En curso']);
+        $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing');
+
+        Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
+            ->fillForm([
+                'student_dni' => $profile->dni,
+                'equipment_id' => $newEquipment->getKey(),
+                'borrowing_date' => $borrowing->borrowing_date->format('Y-m-d H:i:s'),
+                'due_date' => $borrowing->due_date->format('Y-m-d H:i:s'),
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertNotified();
+
+        $this->assertSame($newEquipment->getKey(), $borrowing->fresh()->equipment_id);
+        $this->assertSame('Prestado', $newEquipment->fresh()->status);
+        $this->assertSame('Disponible', $previousEquipment->fresh()->status);
+    }
+
+    /**
+     * Un usuario con Delete_Borrowing puede eliminar un préstamo activo desde la cabecera
+     * de edición, devolviendo el equipo a Disponible si no tiene otro préstamo activo.
      */
     public function test_a_user_with_delete_permission_can_delete_a_borrowing_from_the_edit_page(): void
     {
-        $borrowing = Borrowing::factory()->create();
+        $equipment = Equipment::factory()->withStatus('Prestado')->create();
+        $borrowing = Borrowing::factory()->for($equipment)->create(['status' => 'En curso']);
         $this->signInWithPermissions('ViewAny_Borrowing', 'Update_Borrowing', 'Delete_Borrowing');
 
         Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
@@ -387,6 +462,7 @@ class BorrowingResourceTest extends TestCase
             ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $this->assertModelMissing($borrowing);
+        $this->assertSame('Disponible', $equipment->fresh()->status);
     }
 
     /**
@@ -405,24 +481,31 @@ class BorrowingResourceTest extends TestCase
 
     /**
      * Un usuario con DeleteAny_Borrowing y Delete_Borrowing puede eliminar masivamente
-     * solo los préstamos seleccionados desde la tabla.
+     * solo los préstamos seleccionados y liberar a Disponible los equipos sin otros préstamos activos.
      */
     public function test_a_user_with_delete_any_and_delete_permissions_can_bulk_delete_borrowings(): void
     {
-        $toDelete = Borrowing::factory()->count(2)->create();
-        $toKeep = Borrowing::factory()->create();
+        $firstEquipment = Equipment::factory()->withStatus('Prestado')->create();
+        $secondEquipment = Equipment::factory()->withStatus('Prestado')->create();
+        $keptEquipment = Equipment::factory()->withStatus('Prestado')->create();
+
+        $firstToDelete = Borrowing::factory()->for($firstEquipment)->create(['status' => 'En curso']);
+        $secondToDelete = Borrowing::factory()->for($secondEquipment)->create(['status' => 'En curso']);
+        $toKeep = Borrowing::factory()->for($keptEquipment)->create(['status' => 'En curso']);
         $this->signInWithPermissions('ViewAny_Borrowing', 'Delete_Borrowing', 'DeleteAny_Borrowing');
 
         Livewire::test(ListBorrowings::class)
-            ->selectTableRecords($toDelete)
+            ->selectTableRecords([$firstToDelete, $secondToDelete])
             ->callAction(TestAction::make(DeleteBulkAction::class)->table()->bulk())
             ->assertNotified();
 
-        foreach ($toDelete as $borrowing) {
-            $this->assertModelMissing($borrowing);
-        }
+        $this->assertModelMissing($firstToDelete);
+        $this->assertModelMissing($secondToDelete);
+        $this->assertSame('Disponible', $firstEquipment->fresh()->status);
+        $this->assertSame('Disponible', $secondEquipment->fresh()->status);
 
         $this->assertModelExists($toKeep);
+        $this->assertSame('Prestado', $keptEquipment->fresh()->status);
     }
 
     /**
