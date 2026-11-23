@@ -22,10 +22,38 @@ class ProfileFactory extends Factory
             'dni' => fake()->unique()->numerify('########'),
             'first_name' => fake()->firstName(),
             'last_name' => fake()->lastName(),
+            'maternal_last_name' => fake()->lastName(),
+            'user_type' => Profile::USER_TYPE_STUDENT,
+            'program' => fake()->randomElement(array_keys(Profile::PROGRAMS)),
+            'cycle' => fake()->numberBetween(1, 10),
             'phone' => fake()->numerify('9########'),
             'address' => fake()->streetAddress(),
             'photo' => null,
         ];
+    }
+
+    /**
+     * Indica que el perfil pertenece a un docente (sin programa ni ciclo).
+     */
+    public function teacher(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'user_type' => Profile::USER_TYPE_TEACHER,
+            'program' => null,
+            'cycle' => null,
+        ]);
+    }
+
+    /**
+     * Indica que el perfil pertenece a personal administrativo (sin programa ni ciclo).
+     */
+    public function administrative(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'user_type' => Profile::USER_TYPE_ADMINISTRATIVE,
+            'program' => null,
+            'cycle' => null,
+        ]);
     }
 
     /**

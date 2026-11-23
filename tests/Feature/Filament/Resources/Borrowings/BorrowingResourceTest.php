@@ -222,11 +222,13 @@ class BorrowingResourceTest extends TestCase
             'dni' => '70100001',
             'first_name' => 'Ana',
             'last_name' => 'Zapata',
+            'maternal_last_name' => 'Paredes',
         ]);
         $brunoProfile = Profile::factory()->create([
             'dni' => '70100002',
             'first_name' => 'Bruno',
             'last_name' => 'Alvarez',
+            'maternal_last_name' => 'Mendoza',
         ]);
         $anaBorrowing = Borrowing::factory()->for($anaProfile)->create();
         $brunoBorrowing = Borrowing::factory()->for($brunoProfile)->create();
@@ -234,7 +236,7 @@ class BorrowingResourceTest extends TestCase
 
         $table = Livewire::test(ListBorrowings::class);
 
-        foreach (['Ana', 'Zapata', 'ana zapata'] as $term) {
+        foreach (['Ana', 'Zapata', 'Paredes', 'ana zapata', 'zapata paredes'] as $term) {
             $table
                 ->searchTable($term)
                 ->assertCanSeeTableRecords([$anaBorrowing])
@@ -259,7 +261,8 @@ class BorrowingResourceTest extends TestCase
         $profile = Profile::factory()->create([
             'dni' => '72223333',
             'first_name' => 'Lucia',
-            'last_name' => 'Rojas Paredes',
+            'last_name' => 'Rojas',
+            'maternal_last_name' => 'Paredes',
         ]);
         $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
 

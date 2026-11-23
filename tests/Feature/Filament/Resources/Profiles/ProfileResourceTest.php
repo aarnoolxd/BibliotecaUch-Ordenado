@@ -12,8 +12,11 @@ use App\Models\Role;
 use App\Models\User;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\Testing\TestAction;
+use Filament\Actions\ViewAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
+use Filament\Infolists\Components\ImageEntry;
+use Filament\Schemas\Schema;
 use Filament\Tables\Columns\ImageColumn;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -46,7 +49,7 @@ class ProfileResourceTest extends TestCase
 
     /**
      * Un usuario con ViewAny_Profile puede abrir el listado de perfiles. La página debe
-     * responder con HTTP 200 y mostrar los perfiles con cuenta vinculada y sin cuenta.
+     * responder con HTTP 200 y mostrar los perfiles con sus datos personales y académicos.
      */
     public function test_a_user_with_list_permission_can_read_the_profiles_table(): void
     {
@@ -57,13 +60,18 @@ class ProfileResourceTest extends TestCase
         $linkedProfile = Profile::factory()->for($linkedUser)->create([
             'dni' => '71234567',
             'first_name' => 'Maria Elena',
-            'last_name' => 'Lopez Diaz',
+            'last_name' => 'Lopez',
+            'maternal_last_name' => 'Diaz',
+            'user_type' => Profile::USER_TYPE_STUDENT,
+            'program' => 'Ingeniería de Sistemas e Informática',
+            'cycle' => 6,
             'phone' => '987654321',
         ]);
-        $unlinkedProfile = Profile::factory()->create([
+        $unlinkedProfile = Profile::factory()->teacher()->create([
             'dni' => '72345678',
             'first_name' => 'Carlos',
             'last_name' => 'Quispe',
+            'maternal_last_name' => 'Huaman',
         ]);
         $this->signInWithPermissions('ViewAny_Profile');
 
@@ -72,9 +80,15 @@ class ProfileResourceTest extends TestCase
             ->assertSeeText($linkedProfile->dni)
             ->assertSeeText($linkedProfile->first_name)
             ->assertSeeText($linkedProfile->last_name)
+            ->assertSeeText($linkedProfile->maternal_last_name)
+            ->assertSeeText($linkedProfile->program)
+            ->assertSeeText('Ciclo 6')
+            ->assertSeeText(Profile::USER_TYPE_STUDENT)
             ->assertSeeText($linkedUser->email)
             ->assertSeeText($linkedProfile->phone)
             ->assertSeeText($unlinkedProfile->dni)
+            ->assertSeeText($unlinkedProfile->maternal_last_name)
+            ->assertSeeText(Profile::USER_TYPE_TEACHER)
             ->assertSeeText('Sin cuenta vinculada');
     }
 
@@ -137,29 +151,43 @@ class ProfileResourceTest extends TestCase
     }
 
     /**
-     * La tabla de perfiles permite buscar por DNI, nombres, apellidos, correo de cuenta
-     * vinculada y teléfono, filtrando los demás registros.
+     * La tabla de perfiles permite buscar por DNI, nombres, apellidos, programa,
+     * tipo de usuario, correo de cuenta vinculada y celular.
      */
-    public function test_profiles_table_can_search_by_dni_names_linked_email_and_phone(): void
+    public function test_profiles_table_can_search_by_dni_names_academic_data_linked_email_and_phone(): void
     {
         $linkedUser = User::factory()->create(['email' => 'buscar.perfil@uch.pe']);
         $matchingProfile = Profile::factory()->for($linkedUser)->create([
             'dni' => '70112233',
             'first_name' => 'Valeria',
             'last_name' => 'Mendoza',
+            'maternal_last_name' => 'Espinoza',
+            'user_type' => Profile::USER_TYPE_STUDENT,
+            'program' => 'Contabilidad',
+            'cycle' => 4,
             'phone' => '991122334',
         ]);
-        $otherProfile = Profile::factory()->create([
+        $otherProfile = Profile::factory()->teacher()->create([
             'dni' => '79887766',
             'first_name' => 'Diego',
             'last_name' => 'Salazar',
+            'maternal_last_name' => 'Rojas',
             'phone' => '955443322',
         ]);
         $this->signInWithPermissions('ViewAny_Profile');
 
         $table = Livewire::test(ListProfiles::class);
 
-        foreach (['70112233', 'Valeria', 'Mendoza', 'buscar.perfil@uch.pe', '991122334'] as $term) {
+        foreach ([
+            '70112233',
+            'Valeria',
+            'Mendoza',
+            'Espinoza',
+            'Contabilidad',
+            Profile::USER_TYPE_STUDENT,
+            'buscar.perfil@uch.pe',
+            '991122334',
+        ] as $term) {
             $table
                 ->searchTable($term)
                 ->assertCanSeeTableRecords([$matchingProfile])
@@ -192,11 +220,101 @@ class ProfileResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con Create_Profile puede registrar un perfil vinculado a una cuenta de usuario
-     * incluyendo fotografía. El archivo debe almacenarse en el disco configurado, persistirse
-     * en base de datos, notificarse y redirigir al listado.
+     * Un usuario con View_Profile puede abrir la ficha modal de consulta tanto para un perfil
+     * con fotografía privada y cuenta vinculada como para uno sin foto ni cuenta.
      */
-    public function test_a_user_with_create_permission_can_create_a_profile_linked_to_a_user_with_photo(): void
+    public function test_a_user_with_view_permission_can_open_the_profile_sheet_modal(): void
+    {
+        $disk = config('filament.default_filesystem_disk');
+        Storage::fake($disk);
+        Storage::disk($disk)->put(
+            'profiles/photos/ficha.jpg',
+            UploadedFile::fake()->image('ficha.jpg', 120, 120)->getContent(),
+        );
+        $linkedUser = User::factory()->create(['email' => 'ficha.estudiante@uch.pe']);
+        $studentProfile = Profile::factory()->for($linkedUser)->withPhoto('profiles/photos/ficha.jpg')->create([
+            'dni' => '74125896',
+            'first_name' => 'Lucia',
+            'last_name' => 'Diestra',
+            'maternal_last_name' => 'Espinoza',
+            'user_type' => Profile::USER_TYPE_STUDENT,
+            'program' => 'Ingeniería de Sistemas e Informática',
+            'cycle' => 8,
+            'phone' => '987654321',
+            'address' => 'Av. Universitaria 5175',
+        ]);
+        $teacherProfile = Profile::factory()->teacher()->create([
+            'dni' => '74125897',
+            'first_name' => 'Carlos',
+            'last_name' => 'Lozano',
+            'maternal_last_name' => 'Rivas',
+            'phone' => '912345678',
+            'address' => null,
+            'photo' => null,
+        ]);
+        $this->signInWithPermissions('ViewAny_Profile', 'View_Profile');
+
+        $studentModal = Livewire::test(ListProfiles::class)
+            ->mountAction(TestAction::make(ViewAction::class)->table($studentProfile))
+            ->assertActionMounted(TestAction::make(ViewAction::class)->table($studentProfile))
+            ->assertMountedActionModalSee([
+                'Ficha del perfil',
+                'COMUNIDAD UCH',
+                'Lucia Diestra Espinoza',
+                'Cuenta vinculada',
+                'Ingeniería de Sistemas e Informática',
+                'Ciclo 8',
+                'Estudiante',
+                '74125896',
+                '987654321',
+                'ficha.estudiante@uch.pe',
+                'Av. Universitaria 5175',
+                'Cerrar ficha',
+            ]);
+
+        $infolist = ProfileResource::infolist(Schema::make($studentModal->instance())->record($studentProfile));
+        $photoEntry = $infolist->getComponentByStatePath('photo', withHidden: true);
+
+        $this->assertInstanceOf(ImageEntry::class, $photoEntry);
+        $this->assertSame($disk, $photoEntry->getDiskName());
+        $this->assertSame('private', $photoEntry->getVisibility());
+        $resolvedPhotoUrl = $photoEntry->getImageUrl($studentProfile->photo);
+        $this->assertIsString($resolvedPhotoUrl);
+        $this->assertStringContainsString('profiles/photos/ficha.jpg?expiration=', $resolvedPhotoUrl);
+
+        Livewire::test(ListProfiles::class)
+            ->mountAction(TestAction::make(ViewAction::class)->table($teacherProfile))
+            ->assertActionMounted(TestAction::make(ViewAction::class)->table($teacherProfile))
+            ->assertMountedActionModalSee([
+                'CL',
+                'Carlos Lozano Rivas',
+                'Sin cuenta vinculada',
+                'Sin programa registrado',
+                'Sin ciclo registrado',
+                'Docente',
+                'Sin correo vinculado',
+                'Sin dirección registrada',
+            ]);
+    }
+
+    /**
+     * Un usuario sin View_Profile no debe ver la acción para abrir la ficha del perfil.
+     */
+    public function test_a_user_without_view_permission_cannot_see_the_profile_sheet_action(): void
+    {
+        $profile = Profile::factory()->create();
+        $this->signInWithPermissions('ViewAny_Profile');
+        $action = TestAction::make(ViewAction::class)->table($profile);
+
+        Livewire::test(ListProfiles::class)
+            ->assertActionHidden($action);
+    }
+
+    /**
+     * Un usuario con Create_Profile puede registrar un perfil de estudiante vinculado a una cuenta
+     * incluyendo datos académicos y fotografía en el disco privado configurado.
+     */
+    public function test_a_user_with_create_permission_can_create_a_student_profile_linked_to_a_user_with_photo(): void
     {
         $disk = config('filament.default_filesystem_disk');
         Storage::fake($disk);
@@ -210,7 +328,11 @@ class ProfileResourceTest extends TestCase
                 'user_id' => $linkedUser->getKey(),
                 'dni' => '71234567',
                 'first_name' => 'Juan Alberto',
-                'last_name' => 'Sedano Quispe',
+                'last_name' => 'Sedano',
+                'maternal_last_name' => 'Quispe',
+                'user_type' => Profile::USER_TYPE_STUDENT,
+                'program' => 'Ingeniería de Sistemas e Informática',
+                'cycle' => 5,
                 'phone' => '987654321',
                 'address' => 'Av. Universitaria 1234, Los Olivos',
                 'photo' => $photo,
@@ -224,7 +346,11 @@ class ProfileResourceTest extends TestCase
 
         $this->assertSame($linkedUser->getKey(), $createdProfile->user_id);
         $this->assertSame('Juan Alberto', $createdProfile->first_name);
-        $this->assertSame('Sedano Quispe', $createdProfile->last_name);
+        $this->assertSame('Sedano', $createdProfile->last_name);
+        $this->assertSame('Quispe', $createdProfile->maternal_last_name);
+        $this->assertSame(Profile::USER_TYPE_STUDENT, $createdProfile->user_type);
+        $this->assertSame('Ingeniería de Sistemas e Informática', $createdProfile->program);
+        $this->assertSame(5, $createdProfile->cycle);
         $this->assertSame('987654321', $createdProfile->phone);
         $this->assertSame('Av. Universitaria 1234, Los Olivos', $createdProfile->address);
         $this->assertNotNull($createdProfile->photo);
@@ -233,21 +359,28 @@ class ProfileResourceTest extends TestCase
     }
 
     /**
-     * Se pueden crear múltiples perfiles sin cuenta de usuario vinculada ni campos opcionales,
-     * respetando la restricción única anulable sobre user_id.
+     * Se pueden crear múltiples perfiles no estudiantiles sin cuenta de usuario vinculada ni
+     * campos opcionales, dejando nulos programa y ciclo y respetando la unicidad anulable de user_id.
      */
-    public function test_multiple_profiles_can_be_created_without_a_linked_user_or_optional_fields(): void
+    public function test_multiple_non_student_profiles_can_be_created_without_linked_user_or_optional_fields(): void
     {
         $this->signInWithPermissions('ViewAny_Profile', 'Create_Profile');
 
-        foreach (['71111111' => 'Lucia', '72222222' => 'Mateo'] as $dni => $firstName) {
+        $cases = [
+            ['dni' => '71111111', 'first_name' => 'Lucia', 'user_type' => Profile::USER_TYPE_TEACHER, 'phone' => '911111111'],
+            ['dni' => '72222222', 'first_name' => 'Mateo', 'user_type' => Profile::USER_TYPE_ADMINISTRATIVE, 'phone' => '+51922222222'],
+        ];
+
+        foreach ($cases as $case) {
             Livewire::test(CreateProfile::class)
                 ->fillForm([
                     'user_id' => null,
-                    'dni' => $dni,
-                    'first_name' => $firstName,
-                    'last_name' => 'Rojas Paredes',
-                    'phone' => null,
+                    'dni' => $case['dni'],
+                    'first_name' => $case['first_name'],
+                    'last_name' => 'Rojas',
+                    'maternal_last_name' => 'Paredes',
+                    'user_type' => $case['user_type'],
+                    'phone' => $case['phone'],
                     'address' => null,
                 ])
                 ->call('create')
@@ -259,13 +392,19 @@ class ProfileResourceTest extends TestCase
         $this->assertDatabaseHas('profiles', [
             'dni' => '71111111',
             'user_id' => null,
-            'phone' => null,
+            'user_type' => Profile::USER_TYPE_TEACHER,
+            'program' => null,
+            'cycle' => null,
+            'phone' => '911111111',
             'address' => null,
         ]);
         $this->assertDatabaseHas('profiles', [
             'dni' => '72222222',
             'user_id' => null,
-            'phone' => null,
+            'user_type' => Profile::USER_TYPE_ADMINISTRATIVE,
+            'program' => null,
+            'cycle' => null,
+            'phone' => '+51922222222',
             'address' => null,
         ]);
     }
@@ -281,6 +420,10 @@ class ProfileResourceTest extends TestCase
             'dni' => '73456789',
             'first_name' => 'Ana',
             'last_name' => 'Torres',
+            'maternal_last_name' => 'Vega',
+            'user_type' => Profile::USER_TYPE_STUDENT,
+            'program' => 'Administración',
+            'cycle' => 3,
             'phone' => '911223344',
             'address' => 'Jr. Lima 100',
         ]);
@@ -291,8 +434,12 @@ class ProfileResourceTest extends TestCase
                 'user_id' => $linkedUser->getKey(),
                 'dni' => '73456789',
                 'first_name' => 'Ana Maria',
-                'last_name' => 'Torres Quispe',
-                'phone' => '999888777',
+                'last_name' => 'Torres',
+                'maternal_last_name' => 'Quispe',
+                'user_type' => Profile::USER_TYPE_STUDENT,
+                'program' => 'Contabilidad',
+                'cycle' => 7,
+                'phone' => '+51999888777',
                 'address' => 'Av. Arequipa 500',
             ])
             ->call('save')
@@ -305,9 +452,42 @@ class ProfileResourceTest extends TestCase
         $this->assertSame($linkedUser->getKey(), $profile->user_id);
         $this->assertSame('73456789', $profile->dni);
         $this->assertSame('Ana Maria', $profile->first_name);
-        $this->assertSame('Torres Quispe', $profile->last_name);
-        $this->assertSame('999888777', $profile->phone);
+        $this->assertSame('Torres', $profile->last_name);
+        $this->assertSame('Quispe', $profile->maternal_last_name);
+        $this->assertSame(Profile::USER_TYPE_STUDENT, $profile->user_type);
+        $this->assertSame('Contabilidad', $profile->program);
+        $this->assertSame(7, $profile->cycle);
+        $this->assertSame('+51999888777', $profile->phone);
         $this->assertSame('Av. Arequipa 500', $profile->address);
+    }
+
+    /**
+     * Al cambiar el tipo de usuario de Estudiante a Docente o Administrativo al editar,
+     * deben limpiarse programa y ciclo para evitar datos académicos huérfanos en base de datos.
+     */
+    public function test_editing_a_student_profile_to_non_student_clears_academic_fields(): void
+    {
+        $profile = Profile::factory()->create([
+            'user_type' => Profile::USER_TYPE_STUDENT,
+            'program' => 'Ingeniería de Sistemas e Informática',
+            'cycle' => 9,
+        ]);
+        $this->signInWithPermissions('ViewAny_Profile', 'Update_Profile');
+
+        Livewire::test(EditProfile::class, ['record' => $profile->getRouteKey()])
+            ->fillForm([
+                'user_type' => Profile::USER_TYPE_TEACHER,
+            ])
+            ->assertSet('data.program', null)
+            ->assertSet('data.cycle', null)
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $profile->refresh();
+
+        $this->assertSame(Profile::USER_TYPE_TEACHER, $profile->user_type);
+        $this->assertNull($profile->program);
+        $this->assertNull($profile->cycle);
     }
 
     /**
@@ -340,7 +520,7 @@ class ProfileResourceTest extends TestCase
 
     /**
      * La columna de fotografía de la tabla de perfiles resuelve las imágenes privadas desde el disco
-     * configurado con URLs temporales firmadas y muestra la imagen por defecto cuando no hay foto.
+     * configurado con URLs temporales firmadas y muestra el avatar por defecto cuando no hay foto.
      */
     public function test_profiles_table_resolves_private_profile_photos_with_temporary_urls_and_default_fallback(): void
     {
@@ -365,7 +545,7 @@ class ProfileResourceTest extends TestCase
 
         $this->assertIsString($resolvedUrl);
         $this->assertStringContainsString('profiles/photos/tabla.jpg?expiration=', $resolvedUrl);
-        $this->assertSame(asset('images/banner.svg'), $photoColumn->getDefaultImageUrl());
+        $this->assertSame(asset('images/default-avatar.svg'), $photoColumn->getDefaultImageUrl());
     }
 
     /**
@@ -380,6 +560,7 @@ class ProfileResourceTest extends TestCase
             'dni' => '75555555',
             'first_name' => 'Pedro',
             'last_name' => 'Campos',
+            'maternal_last_name' => 'Paz',
         ]);
         $this->signInWithPermissions('ViewAny_Profile', 'Update_Profile');
 
@@ -389,6 +570,7 @@ class ProfileResourceTest extends TestCase
                 'dni' => '74444444',
                 'first_name' => 'Pedro Modificado',
                 'last_name' => 'Campos',
+                'maternal_last_name' => 'Paz',
             ])
             ->call('save')
             ->assertHasFormErrors([
@@ -471,12 +653,46 @@ class ProfileResourceTest extends TestCase
                 'dni' => '',
                 'first_name' => '',
                 'last_name' => '',
+                'maternal_last_name' => '',
+                'user_type' => null,
+                'phone' => '',
             ])
             ->call('create')
             ->assertHasFormErrors([
                 'dni' => 'El número de DNI es obligatorio.',
                 'first_name' => 'Los nombres son obligatorios.',
-                'last_name' => 'Los apellidos son obligatorios.',
+                'last_name' => 'El apellido paterno es obligatorio.',
+                'maternal_last_name' => 'El apellido materno es obligatorio.',
+                'user_type' => 'El tipo de usuario es obligatorio.',
+                'phone' => 'El número de celular es obligatorio.',
+            ])
+            ->assertNotNotified();
+
+        $this->assertDatabaseCount('profiles', 0);
+    }
+
+    /**
+     * Cuando el tipo de usuario es Estudiante, el programa académico y el ciclo son obligatorios.
+     */
+    public function test_creating_a_student_profile_requires_program_and_cycle(): void
+    {
+        $this->signInWithPermissions('ViewAny_Profile', 'Create_Profile');
+
+        Livewire::test(CreateProfile::class)
+            ->fillForm([
+                'dni' => '71234567',
+                'first_name' => 'Juan Alberto',
+                'last_name' => 'Sedano',
+                'maternal_last_name' => 'Quispe',
+                'user_type' => Profile::USER_TYPE_STUDENT,
+                'program' => null,
+                'cycle' => null,
+                'phone' => '987654321',
+            ])
+            ->call('create')
+            ->assertHasFormErrors([
+                'program' => 'El programa académico es obligatorio.',
+                'cycle' => 'El ciclo es obligatorio.',
             ])
             ->assertNotNotified();
 
@@ -514,15 +730,45 @@ class ProfileResourceTest extends TestCase
                 'field' => 'first_name',
                 'expectedMessage' => 'Los nombres no pueden superar los 255 caracteres.',
             ],
-            'apellidos demasiado cortos' => [
+            'apellido paterno demasiado corto' => [
                 'overrides' => ['last_name' => 'B'],
                 'field' => 'last_name',
-                'expectedMessage' => 'Los apellidos deben tener al menos 2 caracteres.',
+                'expectedMessage' => 'El apellido paterno debe tener al menos 2 caracteres.',
             ],
-            'apellidos demasiado largos' => [
+            'apellido paterno demasiado largo' => [
                 'overrides' => ['last_name' => str_repeat('b', 256)],
                 'field' => 'last_name',
-                'expectedMessage' => 'Los apellidos no pueden superar los 255 caracteres.',
+                'expectedMessage' => 'El apellido paterno no puede superar los 255 caracteres.',
+            ],
+            'apellido materno demasiado corto' => [
+                'overrides' => ['maternal_last_name' => 'C'],
+                'field' => 'maternal_last_name',
+                'expectedMessage' => 'El apellido materno debe tener al menos 2 caracteres.',
+            ],
+            'apellido materno demasiado largo' => [
+                'overrides' => ['maternal_last_name' => str_repeat('c', 256)],
+                'field' => 'maternal_last_name',
+                'expectedMessage' => 'El apellido materno no puede superar los 255 caracteres.',
+            ],
+            'tipo de usuario fuera de lista' => [
+                'overrides' => ['user_type' => 'Externo'],
+                'field' => 'user_type',
+                'expectedMessage' => 'Seleccione un tipo de usuario de la lista.',
+            ],
+            'programa academico fuera de lista' => [
+                'overrides' => ['program' => 'Derecho'],
+                'field' => 'program',
+                'expectedMessage' => 'Seleccione un programa académico de la lista.',
+            ],
+            'ciclo fuera de lista' => [
+                'overrides' => ['cycle' => 11],
+                'field' => 'cycle',
+                'expectedMessage' => 'Seleccione un ciclo de la lista.',
+            ],
+            'celular sin formato peruano valido' => [
+                'overrides' => ['phone' => '812345678'],
+                'field' => 'phone',
+                'expectedMessage' => 'Ingrese un celular válido de 9 dígitos que empiece con 9, con prefijo +51 opcional.',
             ],
             'telefono demasiado largo' => [
                 'overrides' => ['phone' => str_repeat('9', 21)],
@@ -555,7 +801,11 @@ class ProfileResourceTest extends TestCase
             ->fillForm(array_merge([
                 'dni' => '71234567',
                 'first_name' => 'Juan Alberto',
-                'last_name' => 'Sedano Quispe',
+                'last_name' => 'Sedano',
+                'maternal_last_name' => 'Quispe',
+                'user_type' => Profile::USER_TYPE_STUDENT,
+                'program' => 'Ingeniería de Sistemas e Informática',
+                'cycle' => 4,
                 'phone' => '987654321',
                 'address' => 'Av. Universitaria 1234',
             ], $overrides))
@@ -581,7 +831,10 @@ class ProfileResourceTest extends TestCase
                 'user_id' => $existingUser->getKey(),
                 'dni' => '76666666',
                 'first_name' => 'Otra Persona',
-                'last_name' => 'Mismo Dni',
+                'last_name' => 'Mismo',
+                'maternal_last_name' => 'Dni',
+                'user_type' => Profile::USER_TYPE_TEACHER,
+                'phone' => '987654321',
             ])
             ->call('create')
             ->assertHasFormErrors([
@@ -608,6 +861,9 @@ class ProfileResourceTest extends TestCase
                 'dni' => '77777771',
                 'first_name' => 'Rosa',
                 'last_name' => 'Gomez',
+                'maternal_last_name' => 'Diaz',
+                'user_type' => Profile::USER_TYPE_TEACHER,
+                'phone' => '987654321',
                 'photo' => UploadedFile::fake()->image('grande.jpg')->size(2049),
             ])
             ->call('create')
@@ -621,6 +877,9 @@ class ProfileResourceTest extends TestCase
                 'dni' => '77777772',
                 'first_name' => 'Rosa',
                 'last_name' => 'Gomez',
+                'maternal_last_name' => 'Diaz',
+                'user_type' => Profile::USER_TYPE_TEACHER,
+                'phone' => '987654321',
                 'photo' => UploadedFile::fake()->image('animado.gif'),
             ])
             ->call('create')
