@@ -13,6 +13,7 @@ use App\Models\User;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\FileUpload;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Gate;
@@ -306,6 +307,34 @@ class ProfileResourceTest extends TestCase
         $this->assertSame('Torres Quispe', $profile->last_name);
         $this->assertSame('999888777', $profile->phone);
         $this->assertSame('Av. Arequipa 500', $profile->address);
+    }
+
+    /**
+     * Al abrir la edición de un perfil con fotografía guardada en el disco local privado,
+     * el campo debe usar visibilidad privada y generar una URL temporal para la vista previa.
+     */
+    public function test_editing_a_profile_with_a_stored_photo_generates_a_temporary_preview_url(): void
+    {
+        $disk = config('filament.default_filesystem_disk');
+        Storage::fake($disk);
+        Storage::disk($disk)->put(
+            'profiles/photos/avatar.jpg',
+            UploadedFile::fake()->image('avatar.jpg', 100, 100)->getContent(),
+        );
+        $profile = Profile::factory()->withPhoto('profiles/photos/avatar.jpg')->create();
+        $this->signInWithPermissions('ViewAny_Profile', 'Update_Profile');
+
+        $component = Livewire::test(EditProfile::class, ['record' => $profile->getRouteKey()]);
+        $photoField = $component->instance()->form->getFlatFields()['photo'];
+
+        $this->assertInstanceOf(FileUpload::class, $photoField);
+        $this->assertSame('private', $photoField->getVisibility());
+
+        $uploadedFile = $photoField->getUploadedFile($profile->photo, null);
+
+        $this->assertIsArray($uploadedFile);
+        $this->assertIsString($uploadedFile['url']);
+        $this->assertStringContainsString('profiles/photos/avatar.jpg?expiration=', $uploadedFile['url']);
     }
 
     /**
