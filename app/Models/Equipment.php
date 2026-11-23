@@ -39,6 +39,11 @@ class Equipment extends Model
         'observations',
     ];
 
+    protected static function booted(): void
+    {
+        static::deleting(fn (Equipment $equipment): bool => ! $equipment->hasActiveBorrowing());
+    }
+
     /**
      * @return array<string, string>
      */
