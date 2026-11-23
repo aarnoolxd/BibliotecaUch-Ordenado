@@ -130,10 +130,14 @@ class BorrowingTable
                         Borrowing::STATUS_IN_PROGRESS => Borrowing::STATUS_IN_PROGRESS,
                         Borrowing::STATUS_RETURNED => Borrowing::STATUS_RETURNED,
                         Borrowing::STATUS_OVERDUE => Borrowing::STATUS_OVERDUE,
-                    ]),
+                    ])
+                    ->native(false),
             ], layout: FiltersLayout::Modal)
             ->filtersTriggerAction(
-                fn(Action $action): Action => $action->slideOver()->getModalCancelAction(false))
+                fn (Action $action): Action => $action
+                    ->slideOver()
+                    ->modalCancelAction(false),
+            )
             ->recordActions([
                 ActionGroup::make([
                     Action::make('registerReturn')
