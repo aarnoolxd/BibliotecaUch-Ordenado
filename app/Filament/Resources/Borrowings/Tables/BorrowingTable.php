@@ -82,7 +82,7 @@ class BorrowingTable
                     ->color('gray')
                     ->limitList(2)
                     ->expandableLimitedList()
-                    ->placeholder('—')
+                    ->placeholder('Sin periféricos')
                     ->toggleable(),
 
                 TextColumn::make('borrowing_date')
