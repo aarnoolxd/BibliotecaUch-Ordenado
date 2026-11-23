@@ -62,7 +62,6 @@ class BorrowingReturnService
 
             /** @var Collection<int, EquipmentIncident> $incidents */
             $incidents = collect();
-            $incidentNotes = [];
             $releasedCount = 0;
             $maintenanceCount = 0;
 
@@ -106,8 +105,6 @@ class BorrowingReturnService
                     $incidents->push($incident);
                     $equipment->update(['status' => 'Mantenimiento']);
                     $maintenanceCount++;
-
-                    $incidentNotes[] = "[Incidencia - {$equipment->patrimonial_code}]: {$evaluation['description']}";
                 } else {
                     Borrowing::releaseEquipmentIfNoActiveBorrowings(
                         equipmentId: $equipmentId,
@@ -117,19 +114,9 @@ class BorrowingReturnService
                 }
             }
 
-            $observations = $lockedBorrowing->observations;
-
-            if ($incidentNotes !== []) {
-                $appendedNotes = implode("\n", $incidentNotes);
-                $observations = filled($observations)
-                    ? $observations."\n".$appendedNotes
-                    : $appendedNotes;
-            }
-
             $lockedBorrowing->update([
                 'status' => Borrowing::STATUS_RETURNED,
                 'return_date' => now(),
-                'observations' => $observations,
             ]);
 
             return [
