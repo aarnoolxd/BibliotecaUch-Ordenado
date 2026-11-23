@@ -49,6 +49,12 @@ class AdminPanelProvider extends PanelProvider
                 'warning' => '#ea580c', // Naranja para advertencias
                 'info' => '#2563eb', // Azul claro para información
             ])
+            ->navigationGroups([
+                'Gestión de Seguridad',
+                'Gestión de Perfiles',
+                'Gestión de Inventario',
+                'Gestión de Préstamos',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
