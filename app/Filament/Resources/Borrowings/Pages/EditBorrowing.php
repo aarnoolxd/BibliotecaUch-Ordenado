@@ -198,6 +198,62 @@ class EditBorrowing extends EditRecord
                 ->get()
                 ->keyBy('id');
 
+            /** @var Equipment|null $lockedPrimaryEquipment */
+            $lockedPrimaryEquipment = $data['equipment_id'] !== null
+                ? $lockedEquipments->get((int) $data['equipment_id'])
+                : null;
+
+            if ($data['equipment_id'] !== null) {
+                if ($lockedPrimaryEquipment === null) {
+                    throw ValidationException::withMessages([
+                        'data.equipment_id' => 'El recurso seleccionado no existe.',
+                    ]);
+                }
+
+                if (! in_array($lockedPrimaryEquipment->type, Equipment::PRIMARY_BORROWING_TYPES, true)) {
+                    throw ValidationException::withMessages([
+                        'data.equipment_id' => 'Solo puede seleccionar una Computadora o Laptop como equipo principal.',
+                    ]);
+                }
+            }
+
+            foreach ($this->additionalEquipmentIds as $additionalId) {
+                /** @var Equipment|null $lockedAdditional */
+                $lockedAdditional = $lockedEquipments->get($additionalId);
+
+                if ($lockedAdditional === null) {
+                    throw ValidationException::withMessages([
+                        'data.additional_equipment_ids' => 'Uno de los dispositivos adicionales seleccionados no existe en el catálogo.',
+                    ]);
+                }
+
+                if (! in_array($lockedAdditional->type, Equipment::ADDITIONAL_BORROWING_TYPES, true)) {
+                    throw ValidationException::withMessages([
+                        'data.additional_equipment_ids' => "El recurso '{$lockedAdditional->brand} {$lockedAdditional->model}' no pertenece a la categoría Periférico u Otro.",
+                    ]);
+                }
+            }
+
+            $effectiveBorrowingDate = filled($data['borrowing_date'] ?? null)
+                ? Carbon::parse($data['borrowing_date'])
+                : ($lockedRecord->borrowing_date ?? now());
+
+            if ($lockedPrimaryEquipment?->type === 'Computadora') {
+                $effectiveDueDate = filled($data['due_date'] ?? null)
+                    ? Carbon::parse($data['due_date'])
+                    : Borrowing::calculateDueDate('Computadora', $effectiveBorrowingDate);
+
+                if ($effectiveDueDate !== null && $effectiveDueDate->lt($effectiveBorrowingDate)) {
+                    throw ValidationException::withMessages([
+                        'data.due_date' => 'La fecha límite de devolución no puede ser anterior a la fecha del préstamo.',
+                    ]);
+                }
+
+                $data['due_date'] = $effectiveDueDate?->toDateTimeString();
+            } else {
+                $data['due_date'] = null;
+            }
+
             foreach ($idsToClaim as $equipmentId) {
                 /** @var Equipment|null $newEquipment */
                 $newEquipment = $lockedEquipments->get($equipmentId);
