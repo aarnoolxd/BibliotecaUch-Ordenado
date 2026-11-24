@@ -126,7 +126,8 @@ class ExportHistoryExcelServiceTest extends TestCase
         $response->sendContent();
         $binary = (string) ob_get_clean();
 
-        $tempPath = tempnam(sys_get_temp_dir(), 'xlsx_test_').'.xlsx';
+        $tempPath = tempnam(sys_get_temp_dir(), 'xlsx_test_');
+        $this->assertIsString($tempPath);
         file_put_contents($tempPath, $binary);
 
         try {

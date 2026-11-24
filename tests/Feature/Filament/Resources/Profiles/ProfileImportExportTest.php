@@ -194,7 +194,9 @@ class ProfileImportExportTest extends TestCase
         $filePath = $this->createXlsxFile('temp-excel-imports/edge_cases.xlsx', [
             ['Código de estudiante', 'Nombres', 'Ap. Paterno', 'Ap. Materno', 'Tipo de usuario', 'Especialidad', 'Modalidad', 'Turno', 'Ciclo'],
             [$exact50.'B', 'INTRUSO', 'APELLIDO', 'MATERNO', 'Estudiante', 'ADMINISTRACIÓN', 'PRESENCIAL', 'NOCHE', 2],
-            ['DOC-001', 'MARIA ELENA', 'TORRES', 'LOPEZ', '', '', '', '', ''],
+            ['NUEVO-SIN-NOMBRE', '', 'RAMOS', 'LOPEZ', 'Estudiante', 'ADMINISTRACIÓN', 'PRESENCIAL', 'NOCHE', 2],
+            ['NUEVO-SIN-APELLIDO', 'CARLA', '', 'LOPEZ', 'Estudiante', 'ADMINISTRACIÓN', 'PRESENCIAL', 'NOCHE', 2],
+            ['DOC-001', '', 'TORRES ACTUALIZADO', 'LOPEZ', '', '', '', '', ''],
             ['ADM-001', 'LUIS', 'GOMEZ', 'RUIZ', 'Administrativo', 'ADMINISTRACIÓN', 'PRESENCIAL', 'MAÑANA', 3],
         ]);
 
@@ -202,13 +204,18 @@ class ProfileImportExportTest extends TestCase
 
         $this->assertSame(1, $result['imported']);
         $this->assertSame(1, $result['updated']);
-        $this->assertCount(1, $result['errors']);
+        $this->assertCount(3, $result['errors']);
         $this->assertStringContainsString('50 caracteres', $result['errors'][0]);
+        $this->assertStringContainsString('nombres y apellido paterno son obligatorios', $result['errors'][1]);
+        $this->assertStringContainsString('nombres y apellido paterno son obligatorios', $result['errors'][2]);
         $this->assertFileDoesNotExist(Storage::disk('local')->path($filePath));
 
+        $this->assertDatabaseMissing('profiles', ['student_code' => 'NUEVO-SIN-NOMBRE']);
+        $this->assertDatabaseMissing('profiles', ['student_code' => 'NUEVO-SIN-APELLIDO']);
         $this->assertSame('ORIGINAL', $existing50->fresh()->first_name);
         $this->assertSame(Profile::USER_TYPE_TEACHER, $teacher->fresh()->user_type);
-        $this->assertSame('MARIA ELENA', $teacher->fresh()->first_name);
+        $this->assertSame('MARIA', $teacher->fresh()->first_name);
+        $this->assertSame('TORRES ACTUALIZADO', $teacher->fresh()->last_name);
 
         $this->assertDatabaseHas('profiles', [
             'student_code' => 'ADM-001',
@@ -257,7 +264,8 @@ class ProfileImportExportTest extends TestCase
             [str_repeat('Z', 51), 'INVALIDA', 'CODIGO'],
         ]);
 
-        $tempPath = tempnam(sys_get_temp_dir(), 'partial_import_').'.xlsx';
+        $tempPath = tempnam(sys_get_temp_dir(), 'partial_import_');
+        $this->assertIsString($tempPath);
         (new Xlsx($spreadsheet))->save($tempPath);
 
         try {
