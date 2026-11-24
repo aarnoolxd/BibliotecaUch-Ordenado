@@ -23,6 +23,11 @@ class EditBorrowing extends EditRecord
      */
     protected array $additionalEquipmentIds = [];
 
+    /**
+     * Fecha límite enviada originalmente por el formulario antes de normalizar según tipo.
+     */
+    protected ?string $submittedDueDate = null;
+
     protected function getHeaderActions(): array
     {
         return [
@@ -129,6 +134,7 @@ class EditBorrowing extends EditRecord
         }
 
         $this->additionalEquipmentIds = $additionalIds;
+        $this->submittedDueDate = filled($data['due_date'] ?? null) ? (string) $data['due_date'] : null;
         $data['equipment_id'] = $primaryEquipmentId;
 
         $borrowingDate = filled($data['borrowing_date'] ?? null)
@@ -239,8 +245,9 @@ class EditBorrowing extends EditRecord
                 : ($lockedRecord->borrowing_date ?? now());
 
             if ($lockedPrimaryEquipment?->type === 'Computadora') {
-                $effectiveDueDate = filled($data['due_date'] ?? null)
-                    ? Carbon::parse($data['due_date'])
+                $rawDueDate = filled($data['due_date'] ?? null) ? $data['due_date'] : $this->submittedDueDate;
+                $effectiveDueDate = filled($rawDueDate)
+                    ? Carbon::parse($rawDueDate)
                     : Borrowing::calculateDueDate('Computadora', $effectiveBorrowingDate);
 
                 if ($effectiveDueDate !== null && $effectiveDueDate->lt($effectiveBorrowingDate)) {

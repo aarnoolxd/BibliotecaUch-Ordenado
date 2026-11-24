@@ -1308,6 +1308,17 @@ class BorrowingResourceTest extends TestCase
         {
             /**
              * @param  array<string, mixed>  $data
+             * @return array<string, mixed>
+             */
+            public function executeMutateBeforeSave(Borrowing $record, array $data): array
+            {
+                $this->record = $record;
+
+                return $this->mutateFormDataBeforeSave($data);
+            }
+
+            /**
+             * @param  array<string, mixed>  $data
              */
             public function executeRecordUpdate(Borrowing $record, array $data): Borrowing
             {
@@ -1339,6 +1350,22 @@ class BorrowingResourceTest extends TestCase
         $this->assertNull($updated->due_date);
         $this->assertSame('Disponible', $computer->fresh()->status);
         $this->assertSame('Prestado', $reclassifiedToLaptop->fresh()->status);
+
+        // Si el equipo se lee como Laptop en mutateFormDataBeforeSave pero cambia a Computadora
+        // antes del bloqueo, debe conservarse la due_date enviada por el usuario.
+        $profile = Profile::factory()->create(['dni' => '74449911']);
+        $mutated = $page->executeMutateBeforeSave($updated, [
+            'student_dni' => $profile->dni,
+            'equipment_id' => $reclassifiedToLaptop->getKey(),
+            'borrowing_date' => '2026-11-23 09:00:00',
+            'due_date' => '2026-11-23 14:30:00',
+        ]);
+        $this->assertNull($mutated['due_date']);
+
+        $reclassifiedToLaptop->update(['type' => 'Computadora']);
+        $updatedAsComputer = $page->executeRecordUpdate($updated, $mutated);
+
+        $this->assertSame('2026-11-23 14:30:00', $updatedAsComputer->due_date->format('Y-m-d H:i:s'));
     }
 
     /**
