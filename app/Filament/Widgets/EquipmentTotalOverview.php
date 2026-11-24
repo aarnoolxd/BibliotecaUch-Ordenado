@@ -12,6 +12,11 @@ class EquipmentTotalOverview extends StatsOverviewWidget
 {
     protected static ?int $sort = -2;
 
+    protected int|string|array $columnSpan = [
+        'default' => 'full',
+        'md' => 1,
+    ];
+
     protected int|array|null $columns = 1;
 
     protected ?string $pollingInterval = '15s';

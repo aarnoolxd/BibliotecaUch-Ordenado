@@ -4,8 +4,13 @@ namespace Tests\Feature\Filament;
 
 use App\Filament\Resources\Equipment\Pages\CreateEquipment;
 use App\Filament\Resources\Users\UserResource;
+use App\Filament\Widgets\AfluenceDaysHoursChart;
+use App\Filament\Widgets\BorrowingOverviewStats;
+use App\Filament\Widgets\BorrowingStatusChart;
 use App\Filament\Widgets\EquipmentStatusChart;
 use App\Filament\Widgets\EquipmentTotalOverview;
+use App\Filament\Widgets\MostRequestedResourcesChart;
+use App\Filament\Widgets\StudentCycleAfluenceChart;
 use App\Models\Equipment;
 use App\Models\Permission;
 use App\Models\Profile;
@@ -52,7 +57,12 @@ class PanelInterfaceTest extends TestCase
         $this->assertNotContains(AccountWidget::class, $widgets);
         $this->assertNotContains(FilamentInfoWidget::class, $widgets);
         $this->assertContains(EquipmentTotalOverview::class, $widgets);
+        $this->assertContains(BorrowingOverviewStats::class, $widgets);
         $this->assertContains(EquipmentStatusChart::class, $widgets);
+        $this->assertContains(BorrowingStatusChart::class, $widgets);
+        $this->assertContains(MostRequestedResourcesChart::class, $widgets);
+        $this->assertContains(StudentCycleAfluenceChart::class, $widgets);
+        $this->assertContains(AfluenceDaysHoursChart::class, $widgets);
     }
 
     /**

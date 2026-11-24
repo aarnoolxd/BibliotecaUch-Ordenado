@@ -10,9 +10,12 @@ class EquipmentStatusChart extends ChartWidget
 {
     protected ?string $heading = 'Equipos por estado';
 
-    protected static ?int $sort = -1;
+    protected static ?int $sort = 1;
 
-    protected int|string|array $columnSpan = 'full';
+    protected int|string|array $columnSpan = [
+        'default' => 'full',
+        'md' => 1,
+    ];
 
     protected ?string $maxHeight = '320px';
 
