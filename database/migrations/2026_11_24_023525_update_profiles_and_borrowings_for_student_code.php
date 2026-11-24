@@ -11,15 +11,23 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('profiles', function (Blueprint $table) {
+        Schema::table('profiles', function (Blueprint $table): void {
             $table->renameColumn('dni', 'student_code');
             $table->string('student_type')->nullable();
             $table->string('modality')->nullable();
             $table->string('shift')->nullable();
         });
 
-        Schema::table('borrowings', function (Blueprint $table) {
+        Schema::table('profiles', function (Blueprint $table): void {
+            $table->string('student_code', 50)->change();
+        });
+
+        Schema::table('borrowings', function (Blueprint $table): void {
             $table->renameColumn('student_dni', 'student_code');
+        });
+
+        Schema::table('borrowings', function (Blueprint $table): void {
+            $table->string('student_code', 50)->change();
         });
     }
 
@@ -28,11 +36,11 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('borrowings', function (Blueprint $table) {
+        Schema::table('borrowings', function (Blueprint $table): void {
             $table->renameColumn('student_code', 'student_dni');
         });
 
-        Schema::table('profiles', function (Blueprint $table) {
+        Schema::table('profiles', function (Blueprint $table): void {
             $table->dropColumn(['student_type', 'modality', 'shift']);
             $table->renameColumn('student_code', 'dni');
         });
