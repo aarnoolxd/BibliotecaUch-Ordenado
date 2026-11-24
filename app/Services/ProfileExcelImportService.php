@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Filament\Resources\Profiles\Schemas\ProfileForm;
 use App\Models\Profile;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -11,171 +12,222 @@ use Throwable;
 
 class ProfileExcelImportService
 {
+    private const string IMPORT_DIRECTORY = 'temp-excel-imports';
+
     /**
      * Procesa un archivo Excel (.xlsx / .xls / .csv) almacenado temporalmente
-     * y registra o actualiza los estudiantes.
+     * en temp-excel-imports y registra o actualiza los perfiles.
      *
      * @return array{imported: int, updated: int, errors: list<string>}
      */
     public function import(string $filePath): array
     {
-        $realPath = Storage::disk('local')->path($filePath);
+        $realPath = $this->resolveAuthorizedTempFilePath($filePath);
 
-        if (! file_exists($realPath)) {
-            // Intentar verificar en storage público si fue subido allí
-            $publicPath = Storage::disk('public')->path($filePath);
-            if (file_exists($publicPath)) {
-                $realPath = $publicPath;
-            } else {
-                return [
-                    'imported' => 0,
-                    'updated' => 0,
-                    'errors' => ['El archivo de importación no se encuentra en el almacenamiento.'],
-                ];
-            }
+        if ($realPath === null) {
+            return [
+                'imported' => 0,
+                'updated' => 0,
+                'errors' => ['El archivo de importación no es válido o no se encuentra en el almacenamiento temporal.'],
+            ];
         }
 
         try {
-            $spreadsheet = IOFactory::load($realPath);
-            $sheet = $spreadsheet->getActiveSheet();
-            $rows = $sheet->toArray();
-        } catch (Throwable $e) {
-            return [
-                'imported' => 0,
-                'updated' => 0,
-                'errors' => ['No se pudo leer el archivo Excel: '.$e->getMessage()],
-            ];
-        }
-
-        if (count($rows) < 2) {
-            return [
-                'imported' => 0,
-                'updated' => 0,
-                'errors' => ['El archivo no contiene filas de datos para procesar.'],
-            ];
-        }
-
-        // Buscar fila de encabezados
-        $headerIndex = null;
-        $headers = [];
-
-        foreach ($rows as $index => $row) {
-            $rowUpper = array_map(fn ($cell) => mb_strtoupper(trim((string) $cell), 'UTF-8'), $row);
-            // Comprobar si esta fila parece ser la cabecera
-            if (in_array('CÓDIGO DE ESTUDIANTE', $rowUpper, true) || in_array('CODIGO DE ESTUDIANTE', $rowUpper, true) || in_array('AP. PATERNO', $rowUpper, true) || in_array('NOMBRES', $rowUpper, true)) {
-                $headerIndex = $index;
-                $headers = $rowUpper;
-                break;
-            }
-        }
-
-        // Si no encontró cabecera por nombre, asume la fila 0
-        if ($headerIndex === null) {
-            $headerIndex = 0;
-            $headers = array_map(fn ($cell) => mb_strtoupper(trim((string) $cell), 'UTF-8'), $rows[0]);
-        }
-
-        // Identificar índices de columnas
-        $colMap = [
-            'code' => $this->findColumnIndex($headers, ['CÓDIGO DE ESTUDIANTE', 'CODIGO DE ESTUDIANTE', 'CODIGO', 'CÓDIGO', 'DNI']),
-            'student_type' => $this->findColumnIndex($headers, ['TIPO DE ALUMNO', 'TIPO ALUMNO']),
-            'last_name' => $this->findColumnIndex($headers, ['AP. PATERNO', 'APELLIDO PATERNO', 'PATERNO']),
-            'maternal_last_name' => $this->findColumnIndex($headers, ['AP. MATERNO', 'APELLIDO MATERNO', 'MATERNO']),
-            'first_name' => $this->findColumnIndex($headers, ['NOMBRES', 'NOMBRE']),
-            'program' => $this->findColumnIndex($headers, ['ESPECIALIDAD', 'PROGRAMA', 'CARRERA']),
-            'modality' => $this->findColumnIndex($headers, ['MODALIDAD']),
-            'shift' => $this->findColumnIndex($headers, ['TURNO']),
-            'cycle' => $this->findColumnIndex($headers, ['CICLO']),
-        ];
-
-        if ($colMap['code'] === null || $colMap['first_name'] === null || $colMap['last_name'] === null) {
-            return [
-                'imported' => 0,
-                'updated' => 0,
-                'errors' => ['El archivo Excel no contiene las columnas mínimas obligatorias (Código, Nombres y Apellido Paterno).'],
-            ];
-        }
-
-        $imported = 0;
-        $updated = 0;
-        $errors = [];
-
-        for ($i = $headerIndex + 1; $i < count($rows); $i++) {
-            $row = $rows[$i];
-
-            $rawCode = trim((string) ($row[$colMap['code']] ?? ''));
-            // Extraer solo dígitos o código limpio
-            if ($rawCode === '' || str_contains(mb_strtolower($rawCode), 'no codigo')) {
-                continue;
-            }
-
-            // Sanitizar código (hasta 50 caracteres)
-            $code = mb_substr($rawCode, 0, 50);
-
-            $firstName = trim((string) ($row[$colMap['first_name']] ?? ''));
-            $lastName = trim((string) ($row[$colMap['last_name']] ?? ''));
-            $maternalLastName = $colMap['maternal_last_name'] !== null ? trim((string) ($row[$colMap['maternal_last_name']] ?? '')) : null;
-            $studentType = $colMap['student_type'] !== null ? trim((string) ($row[$colMap['student_type']] ?? '')) : null;
-            $rawProgram = $colMap['program'] !== null ? trim((string) ($row[$colMap['program']] ?? '')) : null;
-            $rawModality = $colMap['modality'] !== null ? trim((string) ($row[$colMap['modality']] ?? '')) : null;
-            $rawShift = $colMap['shift'] !== null ? trim((string) ($row[$colMap['shift']] ?? '')) : null;
-            $rawCycle = $colMap['cycle'] !== null ? trim((string) ($row[$colMap['cycle']] ?? '')) : null;
-
-            if ($firstName === '' && $lastName === '') {
-                continue;
-            }
-
-            // Normalizaciones
-            $program = $this->normalizeProgram($rawProgram);
-            $modality = $this->normalizeModality($rawModality);
-            $shift = $this->normalizeShift($rawShift);
-            $cycle = $this->normalizeCycle($rawCycle);
-
             try {
-                /** @var Profile|null $profile */
-                $profile = Profile::query()->where('student_code', $code)->first();
-
-                if ($profile !== null) {
-                    $profile->update([
-                        'first_name' => $firstName ?: $profile->first_name,
-                        'last_name' => $lastName ?: $profile->last_name,
-                        'maternal_last_name' => $maternalLastName ?: $profile->maternal_last_name,
-                        'student_type' => $studentType ?: $profile->student_type,
-                        'program' => $program ?: $profile->program,
-                        'modality' => $modality ?: $profile->modality,
-                        'shift' => $shift ?: $profile->shift,
-                        'cycle' => $cycle ?: $profile->cycle,
-                        'user_type' => Profile::USER_TYPE_STUDENT,
-                    ]);
-                    $updated++;
-                } else {
-                    Profile::query()->create([
-                        'student_code' => $code,
-                        'first_name' => $firstName,
-                        'last_name' => $lastName,
-                        'maternal_last_name' => $maternalLastName,
-                        'student_type' => $studentType,
-                        'program' => $program,
-                        'modality' => $modality,
-                        'shift' => $shift,
-                        'cycle' => $cycle,
-                        'user_type' => Profile::USER_TYPE_STUDENT,
-                    ]);
-                    $imported++;
-                }
+                $spreadsheet = IOFactory::load($realPath);
+                $sheet = $spreadsheet->getActiveSheet();
+                $rows = $sheet->toArray();
             } catch (Throwable $e) {
-                $errors[] = 'Fila '.($i + 1)." (Código {$code}): ".$e->getMessage();
+                return [
+                    'imported' => 0,
+                    'updated' => 0,
+                    'errors' => ['No se pudo leer el archivo Excel: '.$e->getMessage()],
+                ];
+            }
+
+            if (count($rows) < 2) {
+                return [
+                    'imported' => 0,
+                    'updated' => 0,
+                    'errors' => ['El archivo no contiene filas de datos para procesar.'],
+                ];
+            }
+
+            // Buscar fila de encabezados
+            $headerIndex = null;
+            $headers = [];
+
+            foreach ($rows as $index => $row) {
+                $rowUpper = array_map(fn ($cell) => mb_strtoupper(trim((string) $cell), 'UTF-8'), $row);
+
+                if (in_array('CÓDIGO DE ESTUDIANTE', $rowUpper, true) || in_array('CODIGO DE ESTUDIANTE', $rowUpper, true) || in_array('AP. PATERNO', $rowUpper, true) || in_array('NOMBRES', $rowUpper, true)) {
+                    $headerIndex = $index;
+                    $headers = $rowUpper;
+                    break;
+                }
+            }
+
+            if ($headerIndex === null) {
+                $headerIndex = 0;
+                $headers = array_map(fn ($cell) => mb_strtoupper(trim((string) $cell), 'UTF-8'), $rows[0]);
+            }
+
+            $colMap = [
+                'code' => $this->findColumnIndex($headers, ['CÓDIGO DE ESTUDIANTE', 'CODIGO DE ESTUDIANTE', 'CODIGO', 'CÓDIGO', 'DNI']),
+                'student_type' => $this->findColumnIndex($headers, ['TIPO DE ALUMNO', 'TIPO ALUMNO']),
+                'user_type' => $this->findColumnIndex($headers, ['TIPO DE USUARIO', 'TIPO USUARIO']),
+                'last_name' => $this->findColumnIndex($headers, ['AP. PATERNO', 'APELLIDO PATERNO', 'PATERNO']),
+                'maternal_last_name' => $this->findColumnIndex($headers, ['AP. MATERNO', 'APELLIDO MATERNO', 'MATERNO']),
+                'first_name' => $this->findColumnIndex($headers, ['NOMBRES', 'NOMBRE']),
+                'program' => $this->findColumnIndex($headers, ['ESPECIALIDAD', 'PROGRAMA', 'CARRERA']),
+                'modality' => $this->findColumnIndex($headers, ['MODALIDAD']),
+                'shift' => $this->findColumnIndex($headers, ['TURNO']),
+                'cycle' => $this->findColumnIndex($headers, ['CICLO']),
+            ];
+
+            if ($colMap['code'] === null || $colMap['first_name'] === null || $colMap['last_name'] === null) {
+                return [
+                    'imported' => 0,
+                    'updated' => 0,
+                    'errors' => ['El archivo Excel no contiene las columnas mínimas obligatorias (Código, Nombres y Apellido Paterno).'],
+                ];
+            }
+
+            $imported = 0;
+            $updated = 0;
+            $errors = [];
+
+            for ($i = $headerIndex + 1; $i < count($rows); $i++) {
+                $row = $rows[$i];
+
+                $rawCode = trim((string) ($row[$colMap['code']] ?? ''));
+
+                if ($rawCode === '' || str_contains(mb_strtolower($rawCode, 'UTF-8'), 'no codigo')) {
+                    continue;
+                }
+
+                if (mb_strlen($rawCode, 'UTF-8') > 50) {
+                    $errors[] = 'Fila '.($i + 1).': el código supera el máximo de 50 caracteres.';
+
+                    continue;
+                }
+
+                $code = $rawCode;
+                $firstName = trim((string) ($row[$colMap['first_name']] ?? ''));
+                $lastName = trim((string) ($row[$colMap['last_name']] ?? ''));
+                $maternalLastName = $colMap['maternal_last_name'] !== null ? trim((string) ($row[$colMap['maternal_last_name']] ?? '')) : null;
+                $studentType = $colMap['student_type'] !== null ? trim((string) ($row[$colMap['student_type']] ?? '')) : null;
+                $rawUserType = $colMap['user_type'] !== null ? trim((string) ($row[$colMap['user_type']] ?? '')) : null;
+                $rawProgram = $colMap['program'] !== null ? trim((string) ($row[$colMap['program']] ?? '')) : null;
+                $rawModality = $colMap['modality'] !== null ? trim((string) ($row[$colMap['modality']] ?? '')) : null;
+                $rawShift = $colMap['shift'] !== null ? trim((string) ($row[$colMap['shift']] ?? '')) : null;
+                $rawCycle = $colMap['cycle'] !== null ? trim((string) ($row[$colMap['cycle']] ?? '')) : null;
+
+                if ($firstName === '' && $lastName === '') {
+                    continue;
+                }
+
+                $userType = $this->normalizeUserType($rawUserType);
+
+                if (filled($rawUserType) && $userType === null) {
+                    $errors[] = 'Fila '.($i + 1)." (Código {$code}): tipo de usuario inválido ({$rawUserType}).";
+
+                    continue;
+                }
+
+                $program = $this->normalizeProgram($rawProgram);
+                $modality = $this->normalizeModality($rawModality);
+                $shift = $this->normalizeShift($rawShift);
+                $cycle = $this->normalizeCycle($rawCycle);
+
+                try {
+                    /** @var Profile|null $profile */
+                    $profile = Profile::query()->where('student_code', $code)->first();
+
+                    if ($profile !== null) {
+                        $resolvedUserType = $userType ?? $profile->user_type ?? Profile::USER_TYPE_STUDENT;
+
+                        $updatePayload = ProfileForm::normalizeAcademicData([
+                            'first_name' => $firstName ?: $profile->first_name,
+                            'last_name' => $lastName ?: $profile->last_name,
+                            'maternal_last_name' => $maternalLastName ?: $profile->maternal_last_name,
+                            'student_type' => $studentType ?: $profile->student_type,
+                            'program' => $program ?: $profile->program,
+                            'modality' => $modality ?: $profile->modality,
+                            'shift' => $shift ?: $profile->shift,
+                            'cycle' => $cycle ?: $profile->cycle,
+                            'user_type' => $resolvedUserType,
+                        ]);
+
+                        $profile->update($updatePayload);
+                        $updated++;
+                    } else {
+                        $resolvedUserType = $userType ?? Profile::USER_TYPE_STUDENT;
+
+                        $createPayload = ProfileForm::normalizeAcademicData([
+                            'student_code' => $code,
+                            'first_name' => $firstName,
+                            'last_name' => $lastName,
+                            'maternal_last_name' => $maternalLastName,
+                            'student_type' => $studentType,
+                            'program' => $program,
+                            'modality' => $modality,
+                            'shift' => $shift,
+                            'cycle' => $cycle,
+                            'user_type' => $resolvedUserType,
+                        ]);
+
+                        Profile::query()->create($createPayload);
+                        $imported++;
+                    }
+                } catch (Throwable $e) {
+                    $errors[] = 'Fila '.($i + 1)." (Código {$code}): ".$e->getMessage();
+                }
+            }
+
+            return [
+                'imported' => $imported,
+                'updated' => $updated,
+                'errors' => $errors,
+            ];
+        } finally {
+            if (is_file($realPath)) {
+                @unlink($realPath);
             }
         }
+    }
 
-        // Eliminar archivo temporal
-        @unlink($realPath);
+    /**
+     * Valida que la ruta pertenezca estrictamente al directorio temporal de importaciones
+     * en el disco local y exista como archivo regular.
+     */
+    private function resolveAuthorizedTempFilePath(string $filePath): ?string
+    {
+        $normalizedPath = ltrim(str_replace('\\', '/', trim($filePath)), '/');
 
-        return [
-            'imported' => $imported,
-            'updated' => $updated,
-            'errors' => $errors,
-        ];
+        if ($normalizedPath === '' || ! str_starts_with($normalizedPath, self::IMPORT_DIRECTORY.'/')) {
+            return null;
+        }
+
+        $baseDir = realpath(Storage::disk('local')->path(self::IMPORT_DIRECTORY));
+
+        if ($baseDir === false) {
+            return null;
+        }
+
+        $candidate = realpath(Storage::disk('local')->path($normalizedPath));
+
+        if ($candidate === false || ! is_file($candidate)) {
+            return null;
+        }
+
+        $basePrefix = rtrim($baseDir, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+
+        if (! str_starts_with($candidate, $basePrefix)) {
+            return null;
+        }
+
+        return $candidate;
     }
 
     /**
@@ -191,12 +243,28 @@ class ProfileExcelImportService
             }
         }
 
-        // Búsqueda parcial
         foreach ($headers as $index => $header) {
             foreach ($candidates as $candidate) {
                 if (str_contains($header, $candidate)) {
                     return $index;
                 }
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeUserType(?string $userType): ?string
+    {
+        if (blank($userType)) {
+            return null;
+        }
+
+        $normalized = mb_strtolower(trim($userType), 'UTF-8');
+
+        foreach (Profile::USER_TYPES as $allowedType) {
+            if (mb_strtolower($allowedType, 'UTF-8') === $normalized) {
+                return $allowedType;
             }
         }
 

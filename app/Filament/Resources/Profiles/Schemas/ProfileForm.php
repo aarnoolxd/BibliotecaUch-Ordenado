@@ -24,6 +24,8 @@ class ProfileForm
         if (($data['user_type'] ?? null) !== Profile::USER_TYPE_STUDENT) {
             $data['program'] = null;
             $data['cycle'] = null;
+            $data['modality'] = null;
+            $data['shift'] = null;
         }
 
         return $data;
@@ -110,6 +112,8 @@ class ProfileForm
                         if ($state !== Profile::USER_TYPE_STUDENT) {
                             $set('program', null);
                             $set('cycle', null);
+                            $set('modality', null);
+                            $set('shift', null);
                         }
                     })
                     ->required()
