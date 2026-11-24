@@ -2,11 +2,18 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
+use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class UsersTable
 {
@@ -37,11 +44,43 @@ class UsersTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
-            ])
+                SelectFilter::make('roles')
+                    ->label('Rol asignado')
+                    ->placeholder('Todos los roles')
+                    ->relationship('roles', 'name')
+                    ->preload()
+                    ->native(false),
+
+                TernaryFilter::make('has_profile')
+                    ->label('Perfil vinculado')
+                    ->placeholder('Todas las cuentas')
+                    ->trueLabel('Con perfil vinculado')
+                    ->falseLabel('Sin perfil vinculado')
+                    ->native(false)
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->whereHas('profile'),
+                        false: fn (Builder $query): Builder => $query->whereDoesntHave('profile'),
+                    ),
+            ], layout: FiltersLayout::Modal)
+            ->filtersTriggerAction(
+                fn (Action $action): Action => $action
+                    ->slideOver()
+                    ->modalCancelAction(false),
+            )
             ->recordActions([
                 EditAction::make(),
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->before(function (DeleteAction $action, User $record): void {
+                        if ($record->hasActiveBorrowing()) {
+                            Notification::make()
+                                ->title('No se puede eliminar la cuenta')
+                                ->body('Esta cuenta posee préstamos activos asociados. Cierre o devuelva primero dichos préstamos.')
+                                ->danger()
+                                ->send();
+
+                            $action->cancel();
+                        }
+                    }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
