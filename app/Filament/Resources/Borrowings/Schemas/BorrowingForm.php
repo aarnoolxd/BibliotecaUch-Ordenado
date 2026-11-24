@@ -39,7 +39,7 @@ class BorrowingForm
 
     /**
      * Resuelve el perfil del estudiante actualmente identificado en el formulario
-     * a partir de profile_id o del DNI ingresado.
+     * a partir de profile_id o del código de estudiante ingresado.
      */
     private static function resolveIdentifiedProfile(Get $get): ?Profile
     {
@@ -53,15 +53,15 @@ class BorrowingForm
             }
         }
 
-        $dni = trim((string) ($get('student_dni') ?? ''));
+        $studentCode = trim((string) ($get('student_code') ?? ''));
 
-        if ($dni === '') {
+        if ($studentCode === '') {
             return null;
         }
 
         return Profile::query()
             ->with('user')
-            ->where('dni', $dni)
+            ->where('student_code', $studentCode)
             ->first();
     }
 
@@ -69,13 +69,12 @@ class BorrowingForm
     {
         return $schema
             ->components([
-                TextInput::make('student_dni')
-                    ->label('DNI del Estudiante')
-                    ->placeholder('Ingrese DNI de 8 dígitos')
-                    ->helperText('Debe corresponder al DNI de un estudiante o perfil registrado en el sistema.')
+                TextInput::make('student_code')
+                    ->label('Código del Estudiante')
+                    ->placeholder('Ingrese código de estudiante')
+                    ->helperText('Debe corresponder al código de un estudiante o perfil registrado en el sistema.')
                     ->required()
-                    ->length(8)
-                    ->regex('/^[0-9]{8}$/')
+                    ->maxLength(50)
                     ->live(onBlur: true)
                     ->afterStateUpdated(function (?string $state, Set $set): void {
                         if (blank($state)) {
@@ -85,7 +84,7 @@ class BorrowingForm
                             return;
                         }
 
-                        $profile = Profile::query()->where('dni', trim($state))->first();
+                        $profile = Profile::query()->where('student_code', trim($state))->first();
 
                         if ($profile !== null) {
                             $set('profile_id', $profile->id);
@@ -97,17 +96,16 @@ class BorrowingForm
                     })
                     ->rules([
                         fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
-                            $exists = Profile::query()->where('dni', trim((string) $value))->exists();
+                            $exists = Profile::query()->where('student_code', trim((string) $value))->exists();
 
                             if (! $exists) {
-                                $fail('El DNI ingresado no se encuentra registrado en el sistema. Debe registrar previamente el perfil del estudiante.');
+                                $fail('El código ingresado no se encuentra registrado en el sistema. Debe registrar previamente el perfil del estudiante.');
                             }
                         },
                     ])
                     ->validationMessages([
-                        'required' => 'El DNI del estudiante es obligatorio.',
-                        'length' => 'El DNI debe contener exactamente 8 dígitos numéricos.',
-                        'regex' => 'El DNI solo debe contener números.',
+                        'required' => 'El código del estudiante es obligatorio.',
+                        'max' => 'El código no puede superar los 50 caracteres.',
                     ]),
 
                 TextInput::make('student_name')
@@ -143,8 +141,8 @@ class BorrowingForm
                                 return ProfileResource::infolist($schema->record($profile));
                             }),
                     )
-                    ->placeholder('Se completará automáticamente al ingresar un DNI válido')
-                    ->helperText('Nombre del estudiante obtenido a partir del DNI ingresado.'),
+                    ->placeholder('Se completará automáticamente al ingresar un código válido')
+                    ->helperText('Nombre del estudiante obtenido a partir del código ingresado.'),
 
                 TextInput::make('profile_id')
                     ->hidden()

@@ -59,7 +59,7 @@ class BorrowingResourceTest extends TestCase
     public function test_a_user_with_list_permission_can_read_the_borrowings_table(): void
     {
         $profile = Profile::factory()->create([
-            'dni' => '71234567',
+            'student_code' => '71234567',
             'first_name' => 'Valeria',
             'last_name' => 'Mendoza',
             'maternal_last_name' => 'Cruz',
@@ -86,7 +86,7 @@ class BorrowingResourceTest extends TestCase
             ->withAdditionalEquipment($mouse)
             ->create([
                 'profile_id' => null,
-                'student_dni' => '79998888',
+                'student_code' => '79998888',
                 'status' => Borrowing::STATUS_RETURNED,
                 'return_date' => now(),
                 'observations' => 'Solo accesorios.',
@@ -95,13 +95,13 @@ class BorrowingResourceTest extends TestCase
 
         $this->get(BorrowingResource::getUrl('index'))
             ->assertOk()
-            ->assertSeeText($linkedBorrowing->student_dni)
+            ->assertSeeText($linkedBorrowing->student_code)
             ->assertSeeText($equipment->patrimonial_code)
             ->assertSeeText($equipment->model)
             ->assertSeeText('M185')
             ->assertSeeText('Sin límite')
             ->assertSeeText('En curso')
-            ->assertSeeText($peripheralsOnlyBorrowing->student_dni)
+            ->assertSeeText($peripheralsOnlyBorrowing->student_code)
             ->assertSeeText('Sin equipo principal');
 
         Livewire::test(ListBorrowings::class)
@@ -214,13 +214,13 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * La tabla de préstamos permite ordenar por DNI del estudiante y fecha límite de devolución.
+     * La tabla de préstamos permite ordenar por Código del estudiante y fecha límite de devolución.
      */
-    public function test_borrowings_table_can_sort_by_student_dni_and_due_date(): void
+    public function test_borrowings_table_can_sort_by_student_code_and_due_date(): void
     {
-        $firstProfile = Profile::factory()->create(['dni' => '70000010']);
-        $secondProfile = Profile::factory()->create(['dni' => '70000020']);
-        $thirdProfile = Profile::factory()->create(['dni' => '70000030']);
+        $firstProfile = Profile::factory()->create(['student_code' => '70000010']);
+        $secondProfile = Profile::factory()->create(['student_code' => '70000020']);
+        $thirdProfile = Profile::factory()->create(['student_code' => '70000030']);
 
         $first = Borrowing::factory()->for($firstProfile)->create([
             'due_date' => now()->addHours(6),
@@ -234,9 +234,9 @@ class BorrowingResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Borrowing');
 
         Livewire::test(ListBorrowings::class)
-            ->sortTable('student_dni')
+            ->sortTable('student_code')
             ->assertCanSeeTableRecords([$first, $second, $third], inOrder: true)
-            ->sortTable('student_dni', 'desc')
+            ->sortTable('student_code', 'desc')
             ->assertCanSeeTableRecords([$third, $second, $first], inOrder: true)
             ->sortTable('due_date')
             ->assertCanSeeTableRecords([$second, $third, $first], inOrder: true);
@@ -249,13 +249,13 @@ class BorrowingResourceTest extends TestCase
     public function test_borrowings_table_can_search_and_sort_by_student_full_name(): void
     {
         $anaProfile = Profile::factory()->create([
-            'dni' => '70100001',
+            'student_code' => '70100001',
             'first_name' => 'Ana',
             'last_name' => 'Zapata',
             'maternal_last_name' => 'Paredes',
         ]);
         $brunoProfile = Profile::factory()->create([
-            'dni' => '70100002',
+            'student_code' => '70100002',
             'first_name' => 'Bruno',
             'last_name' => 'Alvarez',
             'maternal_last_name' => 'Mendoza',
@@ -282,13 +282,13 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Al ingresar un DNI registrado en el formulario, deben autocompletarse profile_id
-     * y student_name; al cambiarlo por un DNI inexistente o vaciarlo, ambos campos se limpian.
+     * Al ingresar un Código registrado en el formulario, deben autocompletarse profile_id
+     * y student_name; al cambiarlo por un Código inexistente o vaciarlo, ambos campos se limpian.
      */
-    public function test_entering_a_registered_student_dni_populates_profile_and_name_and_clearing_resets_them(): void
+    public function test_entering_a_registered_student_code_populates_profile_and_name_and_clearing_resets_them(): void
     {
         $profile = Profile::factory()->create([
-            'dni' => '72223333',
+            'student_code' => '72223333',
             'first_name' => 'Lucia',
             'last_name' => 'Rojas',
             'maternal_last_name' => 'Paredes',
@@ -296,16 +296,16 @@ class BorrowingResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
 
         Livewire::test(CreateBorrowing::class)
-            ->set('data.student_dni', '72223333')
+            ->set('data.student_code', '72223333')
             ->assertSet('data.profile_id', $profile->getKey())
             ->assertSet('data.student_name', 'Lucia Rojas Paredes')
-            ->set('data.student_dni', '79999999')
+            ->set('data.student_code', '79999999')
             ->assertSet('data.profile_id', null)
             ->assertSet('data.student_name', null)
-            ->set('data.student_dni', '72223333')
+            ->set('data.student_code', '72223333')
             ->assertSet('data.profile_id', $profile->getKey())
             ->assertSet('data.student_name', 'Lucia Rojas Paredes')
-            ->set('data.student_dni', '')
+            ->set('data.student_code', '')
             ->assertSet('data.profile_id', null)
             ->assertSet('data.student_name', null);
     }
@@ -341,7 +341,7 @@ class BorrowingResourceTest extends TestCase
     public function test_creating_a_computer_borrowing_with_multiple_additional_devices_marks_all_as_prestado(): void
     {
         $this->travelTo('2026-11-23 09:00:00');
-        $profile = Profile::factory()->create(['dni' => '73334444']);
+        $profile = Profile::factory()->create(['student_code' => '73334444']);
         $computer = Equipment::factory()->ofType('Computadora')->withStatus('Disponible')->create();
         $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Disponible')->create();
         $adapter = Equipment::factory()->ofType('Otro')->withStatus('Disponible')->create();
@@ -349,7 +349,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => '73334444',
+                'student_code' => '73334444',
                 'equipment_id' => $computer->getKey(),
                 'additional_equipment_ids' => [$mouse->getKey(), $adapter->getKey()],
                 'borrowing_date' => '2026-11-23 09:00:00',
@@ -361,7 +361,7 @@ class BorrowingResourceTest extends TestCase
             ->assertNotified('Préstamo registrado')
             ->assertRedirect(BorrowingResource::getUrl('index'));
 
-        $borrowing = Borrowing::query()->with('additionalEquipment')->where('student_dni', '73334444')->firstOrFail();
+        $borrowing = Borrowing::query()->with('additionalEquipment')->where('student_code', '73334444')->firstOrFail();
 
         $this->assertSame($computer->getKey(), $borrowing->equipment_id);
         $this->assertSame($profile->getKey(), $borrowing->profile_id);
@@ -385,13 +385,13 @@ class BorrowingResourceTest extends TestCase
     public function test_creating_a_laptop_borrowing_leaves_due_date_null(): void
     {
         $this->travelTo('2026-11-23 09:00:00');
-        $profile = Profile::factory()->create(['dni' => '73334445']);
+        $profile = Profile::factory()->create(['student_code' => '73334445']);
         $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Disponible')->create();
         $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => $laptop->getKey(),
                 'borrowing_date' => '2026-11-23 09:00:00',
             ])
@@ -399,7 +399,7 @@ class BorrowingResourceTest extends TestCase
             ->assertHasNoFormErrors()
             ->assertRedirect(BorrowingResource::getUrl('index'));
 
-        $borrowing = Borrowing::query()->where('student_dni', $profile->dni)->firstOrFail();
+        $borrowing = Borrowing::query()->where('student_code', $profile->student_code)->firstOrFail();
 
         $this->assertSame($laptop->getKey(), $borrowing->equipment_id);
         $this->assertNull($borrowing->due_date);
@@ -412,14 +412,14 @@ class BorrowingResourceTest extends TestCase
      */
     public function test_creating_a_borrowing_with_only_additional_devices_and_no_primary_equipment(): void
     {
-        $profile = Profile::factory()->create(['dni' => '73334446']);
+        $profile = Profile::factory()->create(['student_code' => '73334446']);
         $mouse = Equipment::factory()->ofType('Periférico')->withStatus('Disponible')->create();
         $charger = Equipment::factory()->ofType('Otro')->withStatus('Disponible')->create();
         $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => null,
                 'additional_equipment_ids' => [$mouse->getKey(), $charger->getKey()],
                 'borrowing_date' => '2026-11-23 11:00:00',
@@ -429,7 +429,7 @@ class BorrowingResourceTest extends TestCase
             ->assertHasNoFormErrors()
             ->assertNotified('Préstamo registrado');
 
-        $borrowing = Borrowing::query()->with('additionalEquipment')->where('student_dni', $profile->dni)->firstOrFail();
+        $borrowing = Borrowing::query()->with('additionalEquipment')->where('student_code', $profile->student_code)->firstOrFail();
 
         $this->assertNull($borrowing->equipment_id);
         $this->assertNull($borrowing->due_date);
@@ -447,7 +447,7 @@ class BorrowingResourceTest extends TestCase
      */
     public function test_creating_a_borrowing_enforces_equipment_category_separation_and_additional_availability(): void
     {
-        $profile = Profile::factory()->create(['dni' => '73334447']);
+        $profile = Profile::factory()->create(['student_code' => '73334447']);
         $laptop = Equipment::factory()->ofType('Laptop')->withStatus('Disponible')->create();
         $peripheral = Equipment::factory()->ofType('Periférico')->withStatus('Disponible')->create();
         $unavailablePeripheral = Equipment::factory()->ofType('Periférico')->withStatus('Mantenimiento')->create([
@@ -458,7 +458,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => $peripheral->getKey(),
                 'borrowing_date' => '2026-11-23 10:00:00',
             ])
@@ -468,7 +468,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => null,
                 'additional_equipment_ids' => [$laptop->getKey()],
                 'borrowing_date' => '2026-11-23 10:00:00',
@@ -479,7 +479,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => $laptop->getKey(),
                 'additional_equipment_ids' => [$unavailablePeripheral->getKey()],
                 'borrowing_date' => '2026-11-23 10:00:00',
@@ -500,7 +500,7 @@ class BorrowingResourceTest extends TestCase
      */
     public function test_create_borrowing_hook_attaches_validation_error_to_form_field_when_equipment_becomes_unavailable(): void
     {
-        $profile = Profile::factory()->create(['dni' => '73339999']);
+        $profile = Profile::factory()->create(['student_code' => '73339999']);
         $equipment = Equipment::factory()->ofType('Computadora')->withStatus('Disponible')->create([
             'brand' => 'HP',
             'model' => 'ProDesk 400',
@@ -509,7 +509,7 @@ class BorrowingResourceTest extends TestCase
 
         $component = Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => $equipment->getKey(),
                 'borrowing_date' => '2026-11-23 09:00:00',
                 'due_date' => '2026-11-23 11:00:00',
@@ -531,7 +531,7 @@ class BorrowingResourceTest extends TestCase
      */
     public function test_a_user_with_update_permission_can_edit_an_in_progress_borrowing_keeping_its_equipment(): void
     {
-        $profile = Profile::factory()->create(['dni' => '74445555']);
+        $profile = Profile::factory()->create(['student_code' => '74445555']);
         $equipment = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
         $borrowing = Borrowing::factory()
             ->for($equipment)
@@ -546,7 +546,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
             ->fillForm([
-                'student_dni' => '74445555',
+                'student_code' => '74445555',
                 'equipment_id' => $equipment->getKey(),
                 'borrowing_date' => '2026-11-20 09:00:00',
                 'due_date' => '2026-11-20 12:00:00',
@@ -570,7 +570,7 @@ class BorrowingResourceTest extends TestCase
      */
     public function test_editing_an_in_progress_borrowing_syncs_additional_equipment_and_clears_due_date_when_removing_computer(): void
     {
-        $profile = Profile::factory()->create(['dni' => '74445556']);
+        $profile = Profile::factory()->create(['student_code' => '74445556']);
         $computer = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
         $mouseA = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
         $mouseB = Equipment::factory()->ofType('Periférico')->withStatus('Disponible')->create();
@@ -588,7 +588,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => null,
                 'additional_equipment_ids' => [$mouseB->getKey(), $cable->getKey()],
                 'borrowing_date' => '2026-11-20 09:00:00',
@@ -712,13 +712,13 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Al cambiar student_dni al editar un préstamo En curso, EditBorrowing debe actualizar
+     * Al cambiar student_code al editar un préstamo En curso, EditBorrowing debe actualizar
      * también profile_id al perfil correspondiente aunque no se dispare el evento blur.
      */
-    public function test_editing_a_borrowing_updates_profile_id_when_student_dni_changes(): void
+    public function test_editing_a_borrowing_updates_profile_id_when_student_code_changes(): void
     {
-        $originalProfile = Profile::factory()->create(['dni' => '74447701']);
-        $newProfile = Profile::factory()->create(['dni' => '74447702']);
+        $originalProfile = Profile::factory()->create(['student_code' => '74447701']);
+        $newProfile = Profile::factory()->create(['student_code' => '74447702']);
         $equipment = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
         $borrowing = Borrowing::factory()
             ->for($equipment)
@@ -732,7 +732,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
             ->fillForm([
-                'student_dni' => $newProfile->dni,
+                'student_code' => $newProfile->student_code,
                 'equipment_id' => $equipment->getKey(),
                 'borrowing_date' => '2026-11-20 09:00:00',
                 'due_date' => '2026-11-20 11:00:00',
@@ -744,7 +744,7 @@ class BorrowingResourceTest extends TestCase
 
         $borrowing->refresh();
 
-        $this->assertSame($newProfile->dni, $borrowing->student_dni);
+        $this->assertSame($newProfile->student_code, $borrowing->student_code);
         $this->assertSame($newProfile->getKey(), $borrowing->profile_id);
     }
 
@@ -753,7 +753,7 @@ class BorrowingResourceTest extends TestCase
      */
     public function test_editing_a_borrowing_rejects_due_date_earlier_than_borrowing_date(): void
     {
-        $profile = Profile::factory()->create(['dni' => '74448801']);
+        $profile = Profile::factory()->create(['student_code' => '74448801']);
         $equipment = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
         $borrowing = Borrowing::factory()
             ->for($equipment)
@@ -767,7 +767,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => $equipment->getKey(),
                 'borrowing_date' => '2026-11-20 09:00:00',
                 'due_date' => '2026-11-19 08:00:00',
@@ -787,7 +787,7 @@ class BorrowingResourceTest extends TestCase
      */
     public function test_changing_equipment_on_an_in_progress_borrowing_syncs_both_equipment_statuses(): void
     {
-        $profile = Profile::factory()->create(['dni' => '74446666']);
+        $profile = Profile::factory()->create(['student_code' => '74446666']);
         $previousEquipment = Equipment::factory()->ofType('Computadora')->withStatus('Prestado')->create();
         $newEquipment = Equipment::factory()->ofType('Computadora')->withStatus('Disponible')->create();
         $borrowing = Borrowing::factory()
@@ -798,7 +798,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => $newEquipment->getKey(),
                 'borrowing_date' => $borrowing->borrowing_date->format('Y-m-d H:i:s'),
                 'due_date' => $borrowing->due_date->format('Y-m-d H:i:s'),
@@ -1081,7 +1081,7 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * Al crear un préstamo sin DNI ni ningún recurso (ni principal ni adicional),
+     * Al crear un préstamo sin Código ni ningún recurso (ni principal ni adicional),
      * deben mostrarse los mensajes de validación correspondientes.
      */
     public function test_creating_a_borrowing_rejects_empty_required_fields(): void
@@ -1090,13 +1090,13 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => '',
+                'student_code' => '',
                 'equipment_id' => null,
                 'additional_equipment_ids' => [],
             ])
             ->call('create')
             ->assertHasFormErrors([
-                'student_dni' => 'El DNI del estudiante es obligatorio.',
+                'student_code' => 'El código del estudiante es obligatorio.',
                 'equipment_id' => 'Debe seleccionar al menos un equipo principal o un dispositivo adicional para registrar el préstamo.',
             ])
             ->assertNotNotified();
@@ -1105,37 +1105,23 @@ class BorrowingResourceTest extends TestCase
     }
 
     /**
-     * El formulario debe rechazar DNIs con formato inválido o que no correspondan a ningún
-     * perfil registrado en el sistema.
+     * El formulario debe rechazar Códigos que no correspondan a ningún perfil registrado en el sistema.
      */
-    public function test_creating_a_borrowing_rejects_malformed_or_unregistered_student_dni(): void
+    public function test_creating_a_borrowing_rejects_malformed_or_unregistered_student_code(): void
     {
         $equipment = Equipment::factory()->ofType('Computadora')->withStatus('Disponible')->create();
         $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => '1234567A',
+                'student_code' => '79999999',
                 'equipment_id' => $equipment->getKey(),
                 'borrowing_date' => '2026-11-23 10:00:00',
                 'due_date' => '2026-11-23 12:00:00',
             ])
             ->call('create')
             ->assertHasFormErrors([
-                'student_dni' => 'El DNI solo debe contener números.',
-            ])
-            ->assertNotNotified();
-
-        Livewire::test(CreateBorrowing::class)
-            ->fillForm([
-                'student_dni' => '79999999',
-                'equipment_id' => $equipment->getKey(),
-                'borrowing_date' => '2026-11-23 10:00:00',
-                'due_date' => '2026-11-23 12:00:00',
-            ])
-            ->call('create')
-            ->assertHasFormErrors([
-                'student_dni' => 'El DNI ingresado no se encuentra registrado en el sistema. Debe registrar previamente el perfil del estudiante.',
+                'student_code' => 'El código ingresado no se encuentra registrado en el sistema. Debe registrar previamente el perfil del estudiante.',
             ])
             ->assertNotNotified();
 
@@ -1162,7 +1148,7 @@ class BorrowingResourceTest extends TestCase
     #[DataProvider('unavailableEquipmentStatusesProvider')]
     public function test_creating_a_borrowing_rejects_equipment_that_is_not_disponible(string $status): void
     {
-        $profile = Profile::factory()->create(['dni' => '75556666']);
+        $profile = Profile::factory()->create(['student_code' => '75556666']);
         $equipment = Equipment::factory()->ofType('Laptop')->withStatus($status)->create([
             'brand' => 'Dell',
             'model' => 'Latitude 5430',
@@ -1171,7 +1157,7 @@ class BorrowingResourceTest extends TestCase
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => $equipment->getKey(),
                 'borrowing_date' => '2026-11-23 10:00:00',
             ])
@@ -1188,13 +1174,13 @@ class BorrowingResourceTest extends TestCase
      */
     public function test_creating_a_borrowing_rejects_observations_exceeding_500_characters(): void
     {
-        $profile = Profile::factory()->create(['dni' => '76667777']);
+        $profile = Profile::factory()->create(['student_code' => '76667777']);
         $equipment = Equipment::factory()->ofType('Laptop')->withStatus('Disponible')->create();
         $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing');
 
         Livewire::test(CreateBorrowing::class)
             ->fillForm([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'equipment_id' => $equipment->getKey(),
                 'borrowing_date' => '2026-11-23 10:00:00',
                 'observations' => str_repeat('X', 501),
@@ -1209,12 +1195,12 @@ class BorrowingResourceTest extends TestCase
 
     /**
      * Eliminar el perfil o el usuario registrador desvincula las llaves foráneas anulables
-     * conservando el préstamo y el DNI, mientras que eliminar un equipo con préstamos históricos
+     * conservando el préstamo y el Código, mientras que eliminar un equipo con préstamos históricos
      * (Devuelto) borra esos registros en cascada.
      */
     public function test_deleting_profile_or_registering_user_unlinks_borrowing_while_deleting_equipment_cascades(): void
     {
-        $profile = Profile::factory()->create(['dni' => '78889999']);
+        $profile = Profile::factory()->create(['student_code' => '78889999']);
         $equipment = Equipment::factory()->ofType('Computadora')->withStatus('Disponible')->create();
         $registrar = User::factory()->create();
         $borrowing = Borrowing::factory()
@@ -1235,7 +1221,7 @@ class BorrowingResourceTest extends TestCase
         $this->assertModelExists($borrowing);
         $this->assertNull($borrowing->profile_id);
         $this->assertNull($borrowing->registered_by);
-        $this->assertSame('78889999', $borrowing->student_dni);
+        $this->assertSame('78889999', $borrowing->student_code);
 
         $equipment->delete();
 
@@ -1353,9 +1339,9 @@ class BorrowingResourceTest extends TestCase
 
         // Si el equipo se lee como Laptop en mutateFormDataBeforeSave pero cambia a Computadora
         // antes del bloqueo, debe conservarse la due_date enviada por el usuario.
-        $profile = Profile::factory()->create(['dni' => '74449911']);
+        $profile = Profile::factory()->create(['student_code' => '74449911']);
         $mutated = $page->executeMutateBeforeSave($updated, [
-            'student_dni' => $profile->dni,
+            'student_code' => $profile->student_code,
             'equipment_id' => $reclassifiedToLaptop->getKey(),
             'borrowing_date' => '2026-11-23 09:00:00',
             'due_date' => '2026-11-23 14:30:00',

@@ -138,7 +138,7 @@ class BorrowingSeeder extends Seeder
         ];
 
         foreach ($borrowings as $data) {
-            $profile = Profile::query()->where('dni', $data['student_dni'])->first();
+            $profile = Profile::query()->where('student_code', $data['student_dni'])->first();
 
             if ($profile === null) {
                 continue;
@@ -170,7 +170,7 @@ class BorrowingSeeder extends Seeder
                     fn ($query) => $query->where('equipment_id', $primaryEquipment->getKey()),
                     fn ($query) => $query->whereNull('equipment_id'),
                 )
-                ->where('student_dni', $profile->dni)
+                ->where('student_code', $profile->student_code)
                 ->when(
                     $isActiveStatus,
                     fn ($query) => $query->whereIn('status', Borrowing::ACTIVE_STATUSES),
@@ -185,7 +185,7 @@ class BorrowingSeeder extends Seeder
             $borrowing = Borrowing::query()->create([
                 'equipment_id' => $primaryEquipment?->getKey(),
                 'profile_id' => $profile->getKey(),
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'borrowing_date' => $data['borrowing_date'],
                 'due_date' => $data['due_date'],
                 'return_date' => $data['return_date'],

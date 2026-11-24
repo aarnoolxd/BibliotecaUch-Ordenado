@@ -44,23 +44,23 @@ class EditBorrowing extends EditRecord
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $dni = trim((string) ($data['student_dni'] ?? ''));
-        $profile = Profile::query()->where('dni', $dni)->first();
+        $code = trim((string) ($data['student_code'] ?? ''));
+        $profile = Profile::query()->where('student_code', $code)->first();
 
         if ($profile === null) {
             Notification::make()
                 ->danger()
-                ->title('DNI no encontrado')
+                ->title('Código no encontrado')
                 ->body('Registra primero el perfil del estudiante.')
                 ->persistent()
                 ->send();
 
             throw ValidationException::withMessages([
-                'data.student_dni' => 'El DNI ingresado no existe en el sistema.',
+                'data.student_code' => 'El código de estudiante ingresado no existe en el sistema.',
             ]);
         }
 
-        $data['student_dni'] = $profile->dni;
+        $data['student_code'] = $profile->student_code;
         $data['profile_id'] = $profile->getKey();
 
         $rawAdditionalIds = is_array($data['additional_equipment_ids'] ?? null) ? $data['additional_equipment_ids'] : [];

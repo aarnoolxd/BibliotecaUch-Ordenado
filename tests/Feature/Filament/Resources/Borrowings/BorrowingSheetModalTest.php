@@ -54,7 +54,7 @@ class BorrowingSheetModalTest extends TestCase
 
         $registrar = User::factory()->create(['name' => 'Bibliotecario Turno Mañana']);
         $profile = Profile::factory()->withPhoto('profiles/photos/estudiante.jpg')->create([
-            'dni' => '74561234',
+            'student_code' => '74561234',
             'first_name' => 'Andrea',
             'last_name' => 'Gomez',
             'maternal_last_name' => 'Rios',
@@ -94,7 +94,7 @@ class BorrowingSheetModalTest extends TestCase
             ->withAdditionalEquipment($mouse)
             ->create([
                 'profile_id' => null,
-                'student_dni' => '79001122',
+                'student_code' => '79001122',
                 'observations' => null,
             ]);
 
@@ -164,13 +164,13 @@ class BorrowingSheetModalTest extends TestCase
 
     /**
      * En los formularios de creación y edición de préstamo, el botón del ojito junto a
-     * Estudiante Identificado permanece deshabilitado sin DNI válido y abre la ficha del perfil
+     * Estudiante Identificado permanece deshabilitado sin código válido y abre la ficha del perfil
      * cuando existe un estudiante identificado.
      */
     public function test_borrowing_create_and_edit_forms_can_open_the_identified_student_profile_sheet(): void
     {
         $profile = Profile::factory()->create([
-            'dni' => '76543210',
+            'student_code' => '76543210',
             'first_name' => 'Lucia',
             'last_name' => 'Vargas',
             'maternal_last_name' => 'Salas',
@@ -185,7 +185,7 @@ class BorrowingSheetModalTest extends TestCase
             ->for($equipment)
             ->for($profile)
             ->create([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'status' => Borrowing::STATUS_IN_PROGRESS,
             ]);
 
@@ -195,7 +195,7 @@ class BorrowingSheetModalTest extends TestCase
 
         Livewire::test(CreateBorrowing::class)
             ->assertActionDisabled($viewProfileAction)
-            ->set('data.student_dni', $profile->dni)
+            ->set('data.student_code', $profile->student_code)
             ->assertActionEnabled($viewProfileAction)
             ->mountAction($viewProfileAction)
             ->assertActionMounted($viewProfileAction)

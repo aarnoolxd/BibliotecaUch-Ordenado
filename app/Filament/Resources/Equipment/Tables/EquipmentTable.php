@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Equipment\Tables;
 
 use App\Filament\Resources\Equipment\EquipmentResource;
 use App\Models\Equipment;
+use App\Services\ExportHistoryExcelService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -133,6 +134,27 @@ class EquipmentTable
             ->recordActions([
                 ActionGroup::make([
                     EquipmentResource::equipmentDetailsAction(),
+                    Action::make('export_usage_history')
+                        ->label('Historial de Uso Excel')
+                        ->icon(Heroicon::OutlinedDocumentArrowDown)
+                        ->color('success')
+                        ->authorize(fn (Equipment $record): bool => ($user = auth()->user()) !== null
+                            && $user->can('view', $record)
+                            && $user->can('ViewAny_Borrowing')
+                            && $user->can('View_Profile'))
+                        ->action(function (Equipment $record, ExportHistoryExcelService $service) {
+                            $user = auth()->user();
+
+                            abort_unless(
+                                $user !== null
+                                && $user->can('view', $record)
+                                && $user->can('ViewAny_Borrowing')
+                                && $user->can('View_Profile'),
+                                403,
+                            );
+
+                            return $service->exportEquipmentHistory($record);
+                        }),
                     EditAction::make(),
                     Action::make('discontinue')
                         ->label('Descontinuar')

@@ -4,11 +4,13 @@ namespace App\Filament\Resources\Profiles\Tables;
 
 use App\Filament\Resources\Profiles\ProfileResource;
 use App\Models\Profile;
+use App\Services\ExportHistoryExcelService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
@@ -16,6 +18,9 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Columns\Column;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class ProfilesTable
 {
@@ -28,8 +33,8 @@ class ProfilesTable
                     ->circular()
                     ->defaultImageUrl(fn (): string => asset('images/default-avatar.svg')),
 
-                TextColumn::make('dni')
-                    ->label('DNI')
+                TextColumn::make('student_code')
+                    ->label('Código')
                     ->searchable()
                     ->sortable(),
 
@@ -52,6 +57,20 @@ class ProfilesTable
                 TextColumn::make('program')
                     ->label('Programa')
                     ->placeholder('Sin programa')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('modality')
+                    ->label('Modalidad')
+                    ->placeholder('Sin modalidad')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('shift')
+                    ->label('Turno')
+                    ->placeholder('Sin turno')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
@@ -132,6 +151,25 @@ class ProfilesTable
                     ->modalCancelAction(false),
             )
             ->recordActions([
+                Action::make('export_history')
+                    ->label('Historial Excel')
+                    ->icon(Heroicon::OutlinedDocumentArrowDown)
+                    ->color('success')
+                    ->authorize(fn (Profile $record): bool => ($user = auth()->user()) !== null
+                        && $user->can('view', $record)
+                        && $user->can('ViewAny_Borrowing'))
+                    ->action(function (Profile $record, ExportHistoryExcelService $service) {
+                        $user = auth()->user();
+
+                        abort_unless(
+                            $user !== null
+                            && $user->can('view', $record)
+                            && $user->can('ViewAny_Borrowing'),
+                            403,
+                        );
+
+                        return $service->exportStudentHistory($record);
+                    }),
                 ProfileResource::profileDetailsAction(),
                 EditAction::make(),
                 DeleteAction::make()
@@ -154,7 +192,25 @@ class ProfilesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    // Add bulk actions here if needed
+                    ExportBulkAction::make()
+                        ->label('Exportar a Excel')
+                        ->exports([
+                            ExcelExport::make('seleccionados')
+                                ->withFilename(fn () => 'estudiantes-seleccionados-'.date('Y-m-d'))
+                                ->withColumns([
+                                    Column::make('student_code')->heading('Código de estudiante'),
+                                    Column::make('student_type')->heading('Tipo de alumno'),
+                                    Column::make('last_name')->heading('Ap. Paterno'),
+                                    Column::make('maternal_last_name')->heading('Ap. Materno'),
+                                    Column::make('first_name')->heading('Nombres'),
+                                    Column::make('program')->heading('Especialidad'),
+                                    Column::make('modality')->heading('Modalidad'),
+                                    Column::make('shift')->heading('Turno'),
+                                    Column::make('cycle')->heading('Ciclo'),
+                                    Column::make('user_type')->heading('Tipo de usuario'),
+                                    Column::make('phone')->heading('Celular'),
+                                ]),
+                        ]),
                 ]),
             ]);
     }

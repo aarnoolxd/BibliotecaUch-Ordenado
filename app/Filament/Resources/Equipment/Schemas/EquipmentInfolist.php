@@ -119,7 +119,7 @@ class EquipmentInfolist
                                     return null;
                                 }
 
-                                $borrower = $borrowing->profile?->full_name ?: $borrowing->student_dni;
+                                $borrower = $borrowing->profile?->full_name ?: $borrowing->student_code;
 
                                 return "{$borrower} ({$borrowing->status})";
                             })
@@ -189,7 +189,7 @@ class EquipmentInfolist
 
                                                     $borrower = $borrowing->profile?->full_name ?: 'Estudiante no vinculado';
 
-                                                    return "{$borrower} — DNI {$borrowing->student_dni}";
+                                                    return "{$borrower} — Cód. {$borrowing->student_code}";
                                                 }),
                                             TextEntry::make('created_at')
                                                 ->label('Reportado el')

@@ -19,7 +19,7 @@ class ProfileFactory extends Factory
     {
         return [
             'user_id' => null,
-            'dni' => fake()->unique()->numerify('########'),
+            'student_code' => fake()->unique()->numerify('########'),
             'first_name' => fake()->firstName(),
             'last_name' => fake()->lastName(),
             'maternal_last_name' => fake()->lastName(),

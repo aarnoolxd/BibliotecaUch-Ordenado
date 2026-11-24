@@ -141,7 +141,7 @@ class ProfileSeeder extends Seeder
                 : null;
 
             $profile = Profile::query()->firstOrCreate(
-                ['dni' => $data['dni']],
+                ['student_code' => $data['dni']],
                 [
                     'user_id' => ($user !== null && ! $user->profile()->exists()) ? $user->getKey() : null,
                     'first_name' => $data['first_name'],

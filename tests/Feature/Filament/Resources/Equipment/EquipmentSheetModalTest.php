@@ -54,7 +54,7 @@ class EquipmentSheetModalTest extends TestCase
         );
 
         $profile = Profile::factory()->create([
-            'dni' => '75112233',
+            'student_code' => '75112233',
             'first_name' => 'Carlos',
             'last_name' => 'Mendoza',
             'maternal_last_name' => 'Paredes',
@@ -76,7 +76,7 @@ class EquipmentSheetModalTest extends TestCase
             ->for($activeEquipment)
             ->for($profile)
             ->create([
-                'student_dni' => $profile->dni,
+                'student_code' => $profile->student_code,
                 'status' => Borrowing::STATUS_IN_PROGRESS,
             ]);
 
@@ -114,7 +114,7 @@ class EquipmentSheetModalTest extends TestCase
                 'Carlos Mendoza Paredes (En curso)',
                 'Incluye cargador original de 65W.',
                 'INCIDENCIAS REPORTADAS',
-                'Carlos Mendoza Paredes — DNI 75112233',
+                'Carlos Mendoza Paredes — Cód. 75112233',
                 'Rayadura superficial en tapa superior.',
                 'Cerrar ficha',
             ])

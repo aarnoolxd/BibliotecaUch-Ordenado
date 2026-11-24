@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
-#[Fillable(['equipment_id', 'profile_id', 'student_dni', 'borrowing_date', 'due_date', 'return_date', 'status', 'observations', 'registered_by'])]
+#[Fillable(['equipment_id', 'profile_id', 'student_code', 'borrowing_date', 'due_date', 'return_date', 'status', 'observations', 'registered_by'])]
 class Borrowing extends Model
 {
     use HasFactory;
@@ -36,7 +36,7 @@ class Borrowing extends Model
     protected $fillable = [
         'equipment_id',
         'profile_id',
-        'student_dni',
+        'student_code',
         'borrowing_date',
         'due_date',
         'return_date',
