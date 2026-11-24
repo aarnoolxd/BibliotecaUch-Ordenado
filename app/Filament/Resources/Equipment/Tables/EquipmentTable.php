@@ -132,9 +132,10 @@ class EquipmentTable
                     ->color('danger')
                     ->visible(fn (Equipment $record): bool => $record->status !== Equipment::STATUS_DISCONTINUED)
                     ->authorize('update')
-                    ->modalHeading('Descontinuar equipo por baja técnica')
-                    ->modalDescription('El equipo pasará al estado "Baja" y quedará inhabilitado para préstamos futuros.')
-                    ->modalSubmitActionLabel('Confirmar Descontinuación')
+                    ->modalHeading('Descontinuar equipo')
+                    ->modalDescription('Pasará a estado Baja y no podrá prestarse.')
+                    ->modalSubmitActionLabel('Descontinuar')
+                    ->modalCancelActionLabel('Cancelar')
                     ->schema([
                         Textarea::make('decommission_reason')
                             ->label('Motivo de la baja técnica')
@@ -156,34 +157,39 @@ class EquipmentTable
 
                         match ($result) {
                             Equipment::DISCONTINUE_ACTIVE_BORROWING => Notification::make()
-                                ->title('Operación no permitida')
-                                ->body('No es posible descontinuar el equipo porque mantiene un préstamo activo. Primero debe registrarse su devolución.')
+                                ->title('No se puede descontinuar')
+                                ->body('Tiene un préstamo activo. Registra la devolución primero.')
                                 ->danger()
                                 ->persistent()
                                 ->send(),
                             Equipment::DISCONTINUE_ALREADY_DISCONTINUED => Notification::make()
-                                ->title('El equipo ya se encuentra de baja')
-                                ->body("El equipo {$record->patrimonial_code} ya había sido dado de baja previamente.")
+                                ->title('Ya está de baja')
+                                ->body("{$record->patrimonial_code} ya figura en estado Baja.")
                                 ->warning()
                                 ->send(),
                             Equipment::DISCONTINUE_SUCCESS => Notification::make()
-                                ->title('Equipo descontinuado exitosamente')
-                                ->body("El equipo {$record->patrimonial_code} pasó a estado Baja y quedó inhabilitado para préstamos futuros.")
+                                ->title('Equipo descontinuado')
+                                ->body("{$record->patrimonial_code} pasó a estado Baja.")
                                 ->success()
                                 ->send(),
                             default => Notification::make()
                                 ->title('Equipo no encontrado')
-                                ->body('El equipo ya no se encuentra registrado en el inventario.')
+                                ->body('Este equipo ya no existe.')
                                 ->danger()
                                 ->send(),
                         };
                     }),
                 DeleteAction::make()
+                    ->modalHeading('¿Eliminar equipo?')
+                    ->modalDescription('Esta acción no se puede deshacer.')
+                    ->modalSubmitActionLabel('Eliminar')
+                    ->modalCancelActionLabel('Cancelar')
+                    ->successNotificationTitle('Equipo eliminado')
                     ->before(function (DeleteAction $action, Equipment $record): void {
                         if ($record->hasActiveBorrowing()) {
                             Notification::make()
-                                ->title('No se puede eliminar el equipo')
-                                ->body('Este recurso está asociado a un préstamo activo. Registre primero su devolución.')
+                                ->title('No se puede eliminar')
+                                ->body('Tiene un préstamo activo.')
                                 ->danger()
                                 ->send();
 
@@ -194,6 +200,11 @@ class EquipmentTable
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
+                        ->modalHeading('¿Eliminar equipos?')
+                        ->modalDescription('Esta acción no se puede deshacer.')
+                        ->modalSubmitActionLabel('Eliminar')
+                        ->modalCancelActionLabel('Cancelar')
+                        ->successNotificationTitle('Equipos eliminados')
                         ->before(function (DeleteBulkAction $action, Collection $records): void {
                             $hasActiveBorrowing = $records->contains(
                                 fn (Equipment $record): bool => $record->hasActiveBorrowing(),
@@ -201,8 +212,8 @@ class EquipmentTable
 
                             if ($hasActiveBorrowing) {
                                 Notification::make()
-                                    ->title('No se pueden eliminar los equipos seleccionados')
-                                    ->body('Uno o más equipos seleccionados están asociados a un préstamo activo. Registre primero su devolución.')
+                                    ->title('No se pueden eliminar')
+                                    ->body('Hay equipos con préstamos activos.')
                                     ->danger()
                                     ->send();
 
