@@ -4,11 +4,13 @@ namespace App\Filament\Resources\Profiles\Tables;
 
 use App\Filament\Resources\Profiles\ProfileResource;
 use App\Models\Profile;
+use App\Services\ExportHistoryExcelService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
@@ -149,6 +151,11 @@ class ProfilesTable
                     ->modalCancelAction(false),
             )
             ->recordActions([
+                Action::make('export_history')
+                    ->label('Historial Excel')
+                    ->icon(Heroicon::OutlinedDocumentArrowDown)
+                    ->color('success')
+                    ->action(fn (Profile $record, ExportHistoryExcelService $service) => $service->exportStudentHistory($record)),
                 ProfileResource::profileDetailsAction(),
                 EditAction::make(),
                 DeleteAction::make()

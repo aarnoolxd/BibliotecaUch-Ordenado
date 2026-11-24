@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Equipment\Tables;
 
 use App\Models\Equipment;
+use App\Services\ExportHistoryExcelService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -124,6 +125,11 @@ class EquipmentTable
                     ->modalCancelAction(false),
             )
             ->recordActions([
+                Action::make('export_usage_history')
+                    ->label('Historial de Uso Excel')
+                    ->icon(Heroicon::OutlinedDocumentArrowDown)
+                    ->color('success')
+                    ->action(fn (Equipment $record, ExportHistoryExcelService $service) => $service->exportEquipmentHistory($record)),
                 ViewAction::make(),
                 EditAction::make(),
                 Action::make('discontinue')
