@@ -654,6 +654,135 @@ class EquipmentResourceTest extends TestCase
     }
 
     /**
+     * Un usuario con Update_Equipment puede descontinuar un equipo sin préstamos activos
+     * registrando la baja técnica con fecha y motivo en observaciones y cambiando su estado a Baja.
+     */
+    public function test_a_user_with_update_permission_can_discontinue_equipment_without_active_borrowings(): void
+    {
+        $this->travelTo('2026-11-23 16:45:00');
+        $equipment = Equipment::factory()->withStatus('Mantenimiento')->create([
+            'patrimonial_code' => 'UCH-EQ-00910',
+            'observations' => 'Falla detectada en placa base.',
+        ]);
+        $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment');
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make('discontinue')->table($equipment), [
+                'decommission_reason' => 'Placa madre quemada sin repuesto disponible.',
+            ])
+            ->assertHasNoFormErrors()
+            ->assertNotified('Equipo descontinuado exitosamente')
+            ->assertActionHidden(TestAction::make('discontinue')->table($equipment));
+
+        $equipment->refresh();
+
+        $this->assertSame(Equipment::STATUS_DISCONTINUED, $equipment->status);
+        $this->assertSame(
+            'Falla detectada en placa base. | [BAJA TÉCNICA - 23/11/2026 16:45]: Placa madre quemada sin repuesto disponible.',
+            $equipment->observations,
+        );
+    }
+
+    /**
+     * La acción Descontinuar está oculta para usuarios sin Update_Equipment y para equipos
+     * que ya se encuentran en estado Baja.
+     */
+    public function test_discontinue_action_requires_update_permission_and_is_hidden_for_baja_equipment(): void
+    {
+        $available = Equipment::factory()->withStatus('Disponible')->create();
+        $alreadyBaja = Equipment::factory()->withStatus(Equipment::STATUS_DISCONTINUED)->create();
+
+        $this->signInWithPermissions('ViewAny_Equipment');
+
+        Livewire::test(ListEquipments::class)
+            ->assertActionHidden(TestAction::make('discontinue')->table($available))
+            ->assertActionHidden(TestAction::make('discontinue')->table($alreadyBaja));
+
+        $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment');
+
+        Livewire::test(ListEquipments::class)
+            ->assertActionVisible(TestAction::make('discontinue')->table($available))
+            ->assertActionHidden(TestAction::make('discontinue')->table($alreadyBaja));
+    }
+
+    /**
+     * No se permite descontinuar un equipo mientras posea un préstamo activo (como equipo
+     * principal o como dispositivo adicional), ni desde la tabla ni a nivel de modelo.
+     */
+    public function test_discontinuing_equipment_with_active_borrowing_is_blocked(): void
+    {
+        $primary = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create([
+            'observations' => 'Sin novedades.',
+        ]);
+        $additional = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create([
+            'observations' => null,
+        ]);
+
+        Borrowing::factory()
+            ->for($primary)
+            ->withAdditionalEquipment($additional)
+            ->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+
+        $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment');
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make('discontinue')->table($primary), [
+                'decommission_reason' => 'Intento de baja durante préstamo activo.',
+            ])
+            ->assertNotified('Operación no permitida');
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make('discontinue')->table($additional), [
+                'decommission_reason' => 'Intento de baja de periférico en préstamo.',
+            ])
+            ->assertNotified('Operación no permitida');
+
+        $this->assertSame(Equipment::DISCONTINUE_ACTIVE_BORROWING, $primary->discontinue('Motivo directo.'));
+        $this->assertSame('Prestado', $primary->fresh()->status);
+        $this->assertSame('Sin novedades.', $primary->fresh()->observations);
+        $this->assertSame('Prestado', $additional->fresh()->status);
+        $this->assertNull($additional->fresh()->observations);
+    }
+
+    /**
+     * La acción Descontinuar valida que el motivo sea obligatorio y tenga entre 5 y 500 caracteres.
+     */
+    public function test_discontinue_action_validates_decommission_reason(): void
+    {
+        $equipment = Equipment::factory()->withStatus('Disponible')->create();
+        $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment');
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make('discontinue')->table($equipment), [
+                'decommission_reason' => '   ',
+            ])
+            ->assertHasFormErrors([
+                'decommission_reason' => 'Debe indicar el motivo de la baja técnica.',
+            ])
+            ->assertNotNotified();
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make('discontinue')->table($equipment), [
+                'decommission_reason' => '1234',
+            ])
+            ->assertHasFormErrors([
+                'decommission_reason' => 'El motivo de la baja técnica debe tener al menos 5 caracteres.',
+            ])
+            ->assertNotNotified();
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make('discontinue')->table($equipment), [
+                'decommission_reason' => str_repeat('R', 501),
+            ])
+            ->assertHasFormErrors([
+                'decommission_reason' => 'El motivo de la baja técnica no puede superar los 500 caracteres.',
+            ])
+            ->assertNotNotified();
+
+        $this->assertSame('Disponible', $equipment->fresh()->status);
+    }
+
+    /**
      * Autentica a un ayudante, un rol que ya puede entrar al panel. Cada prueba decide
      * qué permisos adicionales recibe ese rol para operar sobre el recurso.
      */

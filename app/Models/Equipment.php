@@ -28,6 +28,16 @@ class Equipment extends Model
      */
     public const ADDITIONAL_BORROWING_TYPES = ['Periférico', 'Otro'];
 
+    public const STATUS_DISCONTINUED = 'Baja';
+
+    public const DISCONTINUE_SUCCESS = 'discontinued';
+
+    public const DISCONTINUE_ALREADY_DISCONTINUED = 'already_discontinued';
+
+    public const DISCONTINUE_ACTIVE_BORROWING = 'has_active_borrowing';
+
+    public const DISCONTINUE_MISSING = 'missing';
+
     protected $table = 'equipment';
 
     protected $fillable = [
@@ -107,5 +117,45 @@ class Equipment extends Model
     {
         return $this->borrowings()->whereIn('status', Borrowing::ACTIVE_STATUSES)->exists()
             || $this->additionalBorrowings()->whereIn('borrowings.status', Borrowing::ACTIVE_STATUSES)->exists();
+    }
+
+    /**
+     * Registra la baja técnica (estado Baja) del equipo dentro de una transacción con bloqueo
+     * de fila, impidiendo descontinuar equipos con préstamos activos o duplicar la baja.
+     */
+    public function discontinue(string $reason): string
+    {
+        $cleanReason = trim($reason);
+
+        return DB::transaction(function () use ($cleanReason): string {
+            $lockedEquipment = self::query()
+                ->lockForUpdate()
+                ->find($this->getKey());
+
+            if ($lockedEquipment === null) {
+                return self::DISCONTINUE_MISSING;
+            }
+
+            if ($lockedEquipment->status === self::STATUS_DISCONTINUED) {
+                return self::DISCONTINUE_ALREADY_DISCONTINUED;
+            }
+
+            if ($lockedEquipment->hasActiveBorrowing()) {
+                return self::DISCONTINUE_ACTIVE_BORROWING;
+            }
+
+            $existingObservations = filled($lockedEquipment->observations)
+                ? trim((string) $lockedEquipment->observations).' | '
+                : '';
+
+            $lockedEquipment->update([
+                'status' => self::STATUS_DISCONTINUED,
+                'observations' => $existingObservations.'[BAJA TÉCNICA - '.now()->format('d/m/Y H:i').']: '.$cleanReason,
+            ]);
+
+            $this->setRawAttributes($lockedEquipment->getAttributes(), sync: true);
+
+            return self::DISCONTINUE_SUCCESS;
+        });
     }
 }
