@@ -745,11 +745,15 @@ class EquipmentResourceTest extends TestCase
     }
 
     /**
-     * La acción Descontinuar valida que el motivo sea obligatorio y tenga entre 5 y 500 caracteres.
+     * La acción Descontinuar recorta espacios extremos antes de validar que el motivo sea
+     * obligatorio y tenga entre 5 y 500 caracteres, aceptando un motivo válido de 5 caracteres.
      */
     public function test_discontinue_action_validates_decommission_reason(): void
     {
-        $equipment = Equipment::factory()->withStatus('Disponible')->create();
+        $this->travelTo('2026-11-23 17:00:00');
+        $equipment = Equipment::factory()->withStatus('Disponible')->create([
+            'observations' => null,
+        ]);
         $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment');
 
         Livewire::test(ListEquipments::class)
@@ -772,6 +776,15 @@ class EquipmentResourceTest extends TestCase
 
         Livewire::test(ListEquipments::class)
             ->callAction(TestAction::make('discontinue')->table($equipment), [
+                'decommission_reason' => '1234 ',
+            ])
+            ->assertHasFormErrors([
+                'decommission_reason' => 'El motivo de la baja técnica debe tener al menos 5 caracteres.',
+            ])
+            ->assertNotNotified();
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make('discontinue')->table($equipment), [
                 'decommission_reason' => str_repeat('R', 501),
             ])
             ->assertHasFormErrors([
@@ -780,6 +793,157 @@ class EquipmentResourceTest extends TestCase
             ->assertNotNotified();
 
         $this->assertSame('Disponible', $equipment->fresh()->status);
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make('discontinue')->table($equipment), [
+                'decommission_reason' => '12345',
+            ])
+            ->assertHasNoFormErrors()
+            ->assertNotified('Equipo descontinuado exitosamente');
+
+        $equipment->refresh();
+
+        $this->assertSame(Equipment::STATUS_DISCONTINUED, $equipment->status);
+        $this->assertSame('[BAJA TÉCNICA - 23/11/2026 17:00]: 12345', $equipment->observations);
+    }
+
+    /**
+     * Si el estado o las observaciones cambian en base de datos después de abrir EditEquipment
+     * (por ejemplo, por una baja técnica concurrente), el guardado debe rechazarse sin sobrescribir
+     * los datos actuales.
+     */
+    public function test_editing_equipment_rejects_save_when_status_or_observations_changed_after_loading(): void
+    {
+        $this->travelTo('2026-11-23 17:15:00');
+        $discontinuedConcurrently = Equipment::factory()->withStatus('Disponible')->create([
+            'brand' => 'Lenovo',
+            'observations' => 'Operativo en sala.',
+        ]);
+        $observationsChangedConcurrently = Equipment::factory()->withStatus('Disponible')->create([
+            'brand' => 'HP',
+            'observations' => 'Observación inicial.',
+        ]);
+        $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment');
+
+        $staleEditAfterDiscontinue = Livewire::test(EditEquipment::class, [
+            'record' => $discontinuedConcurrently->getRouteKey(),
+        ]);
+
+        $this->assertSame(
+            Equipment::DISCONTINUE_SUCCESS,
+            $discontinuedConcurrently->discontinue('Falla irreparable en tarjeta madre.'),
+        );
+
+        $staleEditAfterDiscontinue
+            ->fillForm([
+                'patrimonial_code' => $discontinuedConcurrently->patrimonial_code,
+                'type' => $discontinuedConcurrently->type,
+                'brand' => 'Lenovo Editado',
+                'model' => $discontinuedConcurrently->model,
+                'serial_number' => $discontinuedConcurrently->serial_number,
+                'status' => 'Mantenimiento',
+                'observations' => 'Edición tardía que no debe sobrescribir la baja.',
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertNotified('El registro fue modificado')
+            ->assertNoRedirect();
+
+        $discontinuedConcurrently->refresh();
+
+        $this->assertSame('Lenovo', $discontinuedConcurrently->brand);
+        $this->assertSame(Equipment::STATUS_DISCONTINUED, $discontinuedConcurrently->status);
+        $this->assertSame(
+            'Operativo en sala. | [BAJA TÉCNICA - 23/11/2026 17:15]: Falla irreparable en tarjeta madre.',
+            $discontinuedConcurrently->observations,
+        );
+
+        $staleEditAfterObservationsChange = Livewire::test(EditEquipment::class, [
+            'record' => $observationsChangedConcurrently->getRouteKey(),
+        ]);
+
+        $observationsChangedConcurrently->update([
+            'observations' => 'Observación actualizada por otro usuario.',
+        ]);
+
+        $staleEditAfterObservationsChange
+            ->fillForm([
+                'patrimonial_code' => $observationsChangedConcurrently->patrimonial_code,
+                'type' => $observationsChangedConcurrently->type,
+                'brand' => 'HP Editado',
+                'model' => $observationsChangedConcurrently->model,
+                'serial_number' => $observationsChangedConcurrently->serial_number,
+                'status' => 'Disponible',
+                'observations' => 'Observación obsoleta.',
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertNotified('El registro fue modificado')
+            ->assertNoRedirect();
+
+        $observationsChangedConcurrently->refresh();
+
+        $this->assertSame('HP', $observationsChangedConcurrently->brand);
+        $this->assertSame('Observación actualizada por otro usuario.', $observationsChangedConcurrently->observations);
+    }
+
+    /**
+     * La baja técnica debe respetar siempre el límite máximo de observaciones del formulario
+     * de edición incluso con motivos de 500 caracteres o con observaciones previas extensas.
+     */
+    public function test_discontinue_keeps_observations_within_form_limit_so_equipment_remains_editable(): void
+    {
+        $this->travelTo('2026-11-23 17:30:00');
+        $withoutObservations = Equipment::factory()->withStatus('Disponible')->create([
+            'brand' => 'Dell',
+            'observations' => null,
+        ]);
+        $withLongObservations = Equipment::factory()->withStatus('Mantenimiento')->create([
+            'observations' => str_repeat('E', 480),
+        ]);
+        $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment');
+
+        Livewire::test(ListEquipments::class)
+            ->callAction(TestAction::make('discontinue')->table($withoutObservations), [
+                'decommission_reason' => str_repeat('R', 500),
+            ])
+            ->assertHasNoFormErrors()
+            ->assertNotified('Equipo descontinuado exitosamente');
+
+        $withoutObservations->refresh();
+
+        $this->assertSame(Equipment::STATUS_DISCONTINUED, $withoutObservations->status);
+        $this->assertSame(Equipment::OBSERVATIONS_MAX_LENGTH, mb_strlen((string) $withoutObservations->observations));
+        $this->assertStringStartsWith('[BAJA TÉCNICA - 23/11/2026 17:30]: ', (string) $withoutObservations->observations);
+        $this->assertStringEndsWith('...', (string) $withoutObservations->observations);
+
+        Livewire::test(EditEquipment::class, ['record' => $withoutObservations->getRouteKey()])
+            ->fillForm([
+                'patrimonial_code' => $withoutObservations->patrimonial_code,
+                'type' => $withoutObservations->type,
+                'brand' => 'Dell Actualizada',
+                'model' => $withoutObservations->model,
+                'serial_number' => $withoutObservations->serial_number,
+                'status' => $withoutObservations->status,
+                'observations' => $withoutObservations->observations,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertNotified('Equipo actualizado exitosamente');
+
+        $this->assertSame('Dell Actualizada', $withoutObservations->fresh()->brand);
+
+        $reason = 'Falla crítica irreparable en fuente de poder principal.';
+        $this->assertSame(Equipment::DISCONTINUE_SUCCESS, $withLongObservations->discontinue($reason));
+
+        $withLongObservations->refresh();
+
+        $this->assertSame(Equipment::STATUS_DISCONTINUED, $withLongObservations->status);
+        $this->assertSame(Equipment::OBSERVATIONS_MAX_LENGTH, mb_strlen((string) $withLongObservations->observations));
+        $this->assertStringContainsString(
+            '... | [BAJA TÉCNICA - 23/11/2026 17:30]: '.$reason,
+            (string) $withLongObservations->observations,
+        );
     }
 
     /**
