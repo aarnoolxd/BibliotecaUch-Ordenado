@@ -5,13 +5,16 @@ namespace App\Filament\Resources\Equipment;
 use App\Filament\Resources\Equipment\Pages\CreateEquipment;
 use App\Filament\Resources\Equipment\Pages\EditEquipment;
 use App\Filament\Resources\Equipment\Pages\ListEquipments;
-use App\Filament\Resources\Equipment\Pages\ViewEquipment;
 use App\Filament\Resources\Equipment\Schemas\EquipmentForm;
+use App\Filament\Resources\Equipment\Schemas\EquipmentInfolist;
 use App\Filament\Resources\Equipment\Tables\EquipmentTable;
 use App\Models\Equipment;
 use BackedEnum;
+use Filament\Actions\Action;
+use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use UnitEnum;
@@ -52,6 +55,25 @@ class EquipmentResource extends Resource
         return EquipmentTable::configure($table);
     }
 
+    public static function infolist(Schema $schema): Schema
+    {
+        return EquipmentInfolist::configure($schema);
+    }
+
+    public static function equipmentDetailsAction(): ViewAction
+    {
+        return ViewAction::make()
+            ->label('Ver')
+            ->icon(Heroicon::OutlinedEye)
+            ->color('primary')
+            ->modalHeading('Ficha del equipo')
+            ->modalDescription('Consulta los datos técnicos, estado, observaciones e incidencias.')
+            ->modalWidth(Width::FourExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalCancelAction(fn (Action $action): Action => $action->label('Cerrar ficha'));
+    }
+
     public static function getRelations(): array
     {
         return [
@@ -64,7 +86,6 @@ class EquipmentResource extends Resource
         return [
             'index' => ListEquipments::route('/'),
             'create' => CreateEquipment::route('/create'),
-            'view' => ViewEquipment::route('/{record}'),
             'edit' => EditEquipment::route('/{record}/edit'),
         ];
     }

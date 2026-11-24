@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Equipment\Schemas;
 
 use App\Models\Equipment;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -105,6 +106,24 @@ class EquipmentForm
                     ->rows(3)
                     ->maxLength(Equipment::OBSERVATIONS_MAX_LENGTH)
                     ->columnSpanFull(),
+
+                FileUpload::make('photo')
+                    ->label('Fotografía del equipo')
+                    ->helperText('Opcional. JPG, PNG o WebP (máx. 4 MB).')
+                    ->nullable()
+                    ->image()
+                    ->imageEditor()
+                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                    ->maxSize(4096)
+                    ->directory('equipment/photos')
+                    ->columnSpanFull()
+                    ->validationMessages([
+                        'image' => 'El archivo debe ser una imagen válida.',
+                        'uploaded' => 'No se pudo subir la imagen. Intenta otra vez.',
+                        'max' => 'La imagen no puede superar los 4 MB.',
+                        'mimes' => 'Usa formato JPG, PNG o WebP.',
+                        'mimetypes' => 'Usa formato JPG, PNG o WebP.',
+                    ]),
             ]);
     }
 }

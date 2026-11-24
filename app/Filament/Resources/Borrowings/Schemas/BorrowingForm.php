@@ -2,11 +2,13 @@
 
 namespace App\Filament\Resources\Borrowings\Schemas;
 
+use App\Filament\Resources\Profiles\ProfileResource;
 use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Models\Profile;
 use Carbon\Carbon;
 use Closure;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -14,6 +16,8 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
+use Filament\Support\Icons\Heroicon;
 
 class BorrowingForm
 {
@@ -31,6 +35,34 @@ class BorrowingForm
             ->whereKey((int) $equipmentId)
             ->where('type', 'Computadora')
             ->exists();
+    }
+
+    /**
+     * Resuelve el perfil del estudiante actualmente identificado en el formulario
+     * a partir de profile_id o del DNI ingresado.
+     */
+    private static function resolveIdentifiedProfile(Get $get): ?Profile
+    {
+        $profileId = $get('profile_id');
+
+        if (filled($profileId)) {
+            $profile = Profile::query()->with('user')->find((int) $profileId);
+
+            if ($profile !== null) {
+                return $profile;
+            }
+        }
+
+        $dni = trim((string) ($get('student_dni') ?? ''));
+
+        if ($dni === '') {
+            return null;
+        }
+
+        return Profile::query()
+            ->with('user')
+            ->where('dni', $dni)
+            ->first();
     }
 
     public static function configure(Schema $schema): Schema
@@ -87,6 +119,30 @@ class BorrowingForm
                             $component->state($record->profile->full_name);
                         }
                     })
+                    ->suffixAction(
+                        Action::make('viewStudentProfile')
+                            ->label('Ver ficha')
+                            ->icon(Heroicon::OutlinedEye)
+                            ->color('primary')
+                            ->tooltip('Ver ficha del estudiante')
+                            ->disabled(fn (Get $get): bool => self::resolveIdentifiedProfile($get) === null)
+                            ->modalHeading('Ficha del perfil')
+                            ->modalDescription('Consulta los datos personales, académicos y de contacto.')
+                            ->modalWidth(Width::FourExtraLarge)
+                            ->stickyModalHeader()
+                            ->stickyModalFooter()
+                            ->modalSubmitAction(false)
+                            ->modalCancelAction(fn (Action $action): Action => $action->label('Cerrar ficha'))
+                            ->schema(function (Schema $schema, Get $get): Schema {
+                                $profile = self::resolveIdentifiedProfile($get);
+
+                                if ($profile === null) {
+                                    return $schema->components([]);
+                                }
+
+                                return ProfileResource::infolist($schema->record($profile));
+                            }),
+                    )
                     ->placeholder('Se completará automáticamente al ingresar un DNI válido')
                     ->helperText('Nombre del estudiante obtenido a partir del DNI ingresado.'),
 

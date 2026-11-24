@@ -25,7 +25,18 @@ class EquipmentFactory extends Factory
             'serial_number' => 'SN-'.fake()->unique()->numerify('##########'),
             'status' => 'Disponible',
             'observations' => null,
+            'photo' => null,
         ];
+    }
+
+    /**
+     * Asocia una fotografía referencial al equipo.
+     */
+    public function withPhoto(?string $path = 'equipment/photos/sample.jpg'): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'photo' => $path,
+        ]);
     }
 
     /**

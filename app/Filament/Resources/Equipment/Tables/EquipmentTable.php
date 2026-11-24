@@ -2,20 +2,24 @@
 
 namespace App\Filament\Resources\Equipment\Tables;
 
+use App\Filament\Resources\Equipment\EquipmentResource;
 use App\Models\Equipment;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
+use Filament\Support\Enums\Size;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 class EquipmentTable
@@ -29,6 +33,9 @@ class EquipmentTable
 
             // Orden cronológico por fecha más reciente (Criterio 4 HU-04)
             ->defaultSort('created_at', 'desc')
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                ->with(['incidents.borrowing.profile', 'incidents.equipment'])
+                ->withCount(['borrowings', 'additionalBorrowings']))
 
             // Indicador visual de carga diferida (Criterio 5 HU-04)
             ->deferLoading()
@@ -43,6 +50,11 @@ class EquipmentTable
                 : 'El inventario aún no tiene equipos registrados. Haz clic en "Crear Equipo" para añadir el primer recurso.')
 
             ->columns([
+                ImageColumn::make('photo')
+                    ->label('Foto')
+                    ->square()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('patrimonial_code')
                     ->label('Cód. Patrimonial')
                     ->searchable()
@@ -68,12 +80,7 @@ class EquipmentTable
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'Disponible' => 'success',
-                        'Prestado' => 'warning',
-                        'Mantenimiento' => 'danger',
-                        default => 'gray',
-                    })
+                    ->color(fn (string $state): string => Equipment::statusColor($state))
                     ->sortable(),
 
                 TextColumn::make('serial_number')
@@ -124,78 +131,85 @@ class EquipmentTable
                     ->modalCancelAction(false),
             )
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-                Action::make('discontinue')
-                    ->label('Descontinuar')
-                    ->icon(Heroicon::OutlinedArchiveBoxXMark)
-                    ->color('danger')
-                    ->visible(fn (Equipment $record): bool => $record->status !== Equipment::STATUS_DISCONTINUED)
-                    ->authorize('update')
-                    ->modalHeading('Descontinuar equipo')
-                    ->modalDescription('Pasará a estado Baja y no podrá prestarse.')
-                    ->modalSubmitActionLabel('Descontinuar')
-                    ->modalCancelActionLabel('Cancelar')
-                    ->schema([
-                        Textarea::make('decommission_reason')
-                            ->label('Motivo de la baja técnica')
-                            ->placeholder('Detalle la falla irreparable, obsolescencia o motivo de retiro...')
-                            ->helperText('Campo obligatorio para justificar el retiro técnico del recurso (5 a 500 caracteres).')
-                            ->required()
-                            ->trim()
-                            ->minLength(5)
-                            ->maxLength(500)
-                            ->rows(3)
-                            ->validationMessages([
-                                'required' => 'Debe indicar el motivo de la baja técnica.',
-                                'min' => 'El motivo de la baja técnica debe tener al menos 5 caracteres.',
-                                'max' => 'El motivo de la baja técnica no puede superar los 500 caracteres.',
-                            ]),
-                    ])
-                    ->action(function (Equipment $record, array $data): void {
-                        $result = $record->discontinue((string) ($data['decommission_reason'] ?? ''));
+                ActionGroup::make([
+                    EquipmentResource::equipmentDetailsAction(),
+                    EditAction::make(),
+                    Action::make('discontinue')
+                        ->label('Descontinuar')
+                        ->icon(Heroicon::OutlinedArchiveBoxXMark)
+                        ->color('danger')
+                        ->visible(fn (Equipment $record): bool => $record->status !== Equipment::STATUS_DISCONTINUED)
+                        ->authorize('update')
+                        ->modalHeading('Descontinuar equipo')
+                        ->modalDescription('Pasará a estado Baja y no podrá prestarse.')
+                        ->modalSubmitActionLabel('Descontinuar')
+                        ->modalCancelActionLabel('Cancelar')
+                        ->schema([
+                            Textarea::make('decommission_reason')
+                                ->label('Motivo de la baja técnica')
+                                ->placeholder('Detalle la falla irreparable, obsolescencia o motivo de retiro...')
+                                ->helperText('Campo obligatorio para justificar el retiro técnico del recurso (5 a 500 caracteres).')
+                                ->required()
+                                ->trim()
+                                ->minLength(5)
+                                ->maxLength(500)
+                                ->rows(3)
+                                ->validationMessages([
+                                    'required' => 'Debe indicar el motivo de la baja técnica.',
+                                    'min' => 'El motivo de la baja técnica debe tener al menos 5 caracteres.',
+                                    'max' => 'El motivo de la baja técnica no puede superar los 500 caracteres.',
+                                ]),
+                        ])
+                        ->action(function (Equipment $record, array $data): void {
+                            $result = $record->discontinue((string) ($data['decommission_reason'] ?? ''));
 
-                        match ($result) {
-                            Equipment::DISCONTINUE_ACTIVE_BORROWING => Notification::make()
-                                ->title('No se puede descontinuar')
-                                ->body('Tiene un préstamo activo. Registra la devolución primero.')
-                                ->danger()
-                                ->persistent()
-                                ->send(),
-                            Equipment::DISCONTINUE_ALREADY_DISCONTINUED => Notification::make()
-                                ->title('Ya está de baja')
-                                ->body("{$record->patrimonial_code} ya figura en estado Baja.")
-                                ->warning()
-                                ->send(),
-                            Equipment::DISCONTINUE_SUCCESS => Notification::make()
-                                ->title('Equipo descontinuado')
-                                ->body("{$record->patrimonial_code} pasó a estado Baja.")
-                                ->success()
-                                ->send(),
-                            default => Notification::make()
-                                ->title('Equipo no encontrado')
-                                ->body('Este equipo ya no existe.')
-                                ->danger()
-                                ->send(),
-                        };
-                    }),
-                DeleteAction::make()
-                    ->modalHeading('¿Eliminar equipo?')
-                    ->modalDescription('Esta acción no se puede deshacer.')
-                    ->modalSubmitActionLabel('Eliminar')
-                    ->modalCancelActionLabel('Cancelar')
-                    ->successNotificationTitle('Equipo eliminado')
-                    ->before(function (DeleteAction $action, Equipment $record): void {
-                        if ($record->hasActiveBorrowing()) {
-                            Notification::make()
-                                ->title('No se puede eliminar')
-                                ->body('Tiene un préstamo activo.')
-                                ->danger()
-                                ->send();
+                            match ($result) {
+                                Equipment::DISCONTINUE_ACTIVE_BORROWING => Notification::make()
+                                    ->title('No se puede descontinuar')
+                                    ->body('Tiene un préstamo activo. Registra la devolución primero.')
+                                    ->danger()
+                                    ->persistent()
+                                    ->send(),
+                                Equipment::DISCONTINUE_ALREADY_DISCONTINUED => Notification::make()
+                                    ->title('Ya está de baja')
+                                    ->body("{$record->patrimonial_code} ya figura en estado Baja.")
+                                    ->warning()
+                                    ->send(),
+                                Equipment::DISCONTINUE_SUCCESS => Notification::make()
+                                    ->title('Equipo descontinuado')
+                                    ->body("{$record->patrimonial_code} pasó a estado Baja.")
+                                    ->success()
+                                    ->send(),
+                                default => Notification::make()
+                                    ->title('Equipo no encontrado')
+                                    ->body('Este equipo ya no existe.')
+                                    ->danger()
+                                    ->send(),
+                            };
+                        }),
+                    DeleteAction::make()
+                        ->modalHeading('¿Eliminar equipo?')
+                        ->modalDescription('Esta acción no se puede deshacer.')
+                        ->modalSubmitActionLabel('Eliminar')
+                        ->modalCancelActionLabel('Cancelar')
+                        ->successNotificationTitle('Equipo eliminado')
+                        ->before(function (DeleteAction $action, Equipment $record): void {
+                            if ($record->hasActiveBorrowing()) {
+                                Notification::make()
+                                    ->title('No se puede eliminar')
+                                    ->body('Tiene un préstamo activo.')
+                                    ->danger()
+                                    ->send();
 
-                            $action->cancel();
-                        }
-                    }),
+                                $action->cancel();
+                            }
+                        }),
+                ])
+                    ->label('Acciones')
+                    ->icon(Heroicon::OutlinedEllipsisVertical)
+                    ->size(Size::Small)
+                    ->color('gray')
+                    ->button(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
