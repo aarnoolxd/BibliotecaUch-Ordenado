@@ -4,32 +4,28 @@ namespace App\Filament\Resources\Users\Pages;
 
 use App\Filament\Resources\CreateRecord;
 use App\Filament\Resources\Users\UserResource;
-use Filament\Actions\Action;
 
 class CreateUser extends CreateRecord
 {
     protected static string $resource = UserResource::class;
 
-    protected function getCreateFormAction(): Action
+    protected function getCreateConfirmationHeading(): string
     {
-        return parent::getCreateFormAction()
-            ->submit(null)
-            ->requiresConfirmation()
-            ->modalHeading('Confirmar creación de cuenta')
-            ->modalDescription('¿Está seguro de que desea registrar esta nueva cuenta de usuario con los datos ingresados?')
-            ->modalSubmitActionLabel('Confirmar y Crear')
-            ->action(function (): void {
-                $this->create();
-            });
+        return '¿Crear cuenta?';
+    }
+
+    protected function getCreateConfirmationDescription(): string
+    {
+        return 'Se registrará esta cuenta de usuario.';
+    }
+
+    protected function getCreateConfirmationSubmitLabel(): string
+    {
+        return 'Crear';
     }
 
     protected function getCreatedNotificationTitle(): ?string
     {
-        return 'Cuenta creada exitosamente';
-    }
-
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
+        return 'Cuenta creada';
     }
 }
