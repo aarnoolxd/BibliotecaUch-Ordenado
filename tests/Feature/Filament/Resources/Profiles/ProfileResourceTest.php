@@ -6,6 +6,7 @@ use App\Filament\Resources\Profiles\Pages\CreateProfile;
 use App\Filament\Resources\Profiles\Pages\EditProfile;
 use App\Filament\Resources\Profiles\Pages\ListProfiles;
 use App\Filament\Resources\Profiles\ProfileResource;
+use App\Models\Borrowing;
 use App\Models\Permission;
 use App\Models\Profile;
 use App\Models\Role;
@@ -602,6 +603,104 @@ class ProfileResourceTest extends TestCase
 
         $this->assertModelMissing($profile);
         $this->assertModelExists($linkedUser);
+    }
+
+    /**
+     * No se permite eliminar un perfil (ni desde la tabla ni a nivel de modelo) si mantiene
+     * préstamos activos (En curso o Vencido), pero sí cuando todos sus préstamos fueron devueltos.
+     */
+    public function test_profile_with_active_borrowing_cannot_be_deleted_from_table_or_model(): void
+    {
+        $activeProfile = Profile::factory()->create();
+        $returnedProfile = Profile::factory()->create();
+
+        Borrowing::factory()->for($activeProfile)->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
+        Borrowing::factory()->for($returnedProfile)->returned()->create();
+
+        $this->signInWithPermissions('ViewAny_Profile', 'Delete_Profile');
+
+        Livewire::test(ListProfiles::class)
+            ->callAction(TestAction::make(DeleteAction::class)->table($activeProfile))
+            ->assertNotified('No se puede eliminar el perfil');
+
+        $this->assertFalse($activeProfile->delete());
+        $this->assertModelExists($activeProfile);
+
+        Livewire::test(ListProfiles::class)
+            ->callAction(TestAction::make(DeleteAction::class)->table($returnedProfile))
+            ->assertNotified();
+
+        $this->assertModelMissing($returnedProfile);
+    }
+
+    /**
+     * Al actualizar el DNI de un perfil, los préstamos vinculados sincronizan automáticamente
+     * su columna student_dni con el nuevo número de documento.
+     */
+    public function test_updating_profile_dni_synchronizes_student_dni_on_linked_borrowings(): void
+    {
+        $profile = Profile::factory()->create(['dni' => '71110001']);
+        $borrowing = Borrowing::factory()->for($profile)->create(['student_dni' => '71110001']);
+        $this->signInWithPermissions('ViewAny_Profile', 'Update_Profile');
+
+        Livewire::test(EditProfile::class, ['record' => $profile->getRouteKey()])
+            ->fillForm([
+                'dni' => '71119999',
+                'first_name' => $profile->first_name,
+                'last_name' => $profile->last_name,
+                'maternal_last_name' => $profile->maternal_last_name,
+                'user_type' => $profile->user_type,
+                'program' => $profile->program,
+                'cycle' => $profile->cycle,
+                'phone' => $profile->phone,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('71119999', $borrowing->fresh()->student_dni);
+    }
+
+    /**
+     * La tabla de perfiles permite filtrar por tipo de usuario, programa académico,
+     * ciclo y vinculación de cuenta de usuario.
+     */
+    public function test_profiles_table_can_filter_by_user_type_program_cycle_and_linked_account(): void
+    {
+        $linkedUser = User::factory()->create();
+        $studentLinked = Profile::factory()->for($linkedUser)->create([
+            'user_type' => Profile::USER_TYPE_STUDENT,
+            'program' => 'Ingeniería de Sistemas e Informática',
+            'cycle' => 6,
+        ]);
+        $studentUnlinked = Profile::factory()->create([
+            'user_id' => null,
+            'user_type' => Profile::USER_TYPE_STUDENT,
+            'program' => 'Administración',
+            'cycle' => 3,
+        ]);
+        $teacher = Profile::factory()->teacher()->create(['user_id' => null]);
+
+        $this->signInWithPermissions('ViewAny_Profile');
+
+        Livewire::test(ListProfiles::class)
+            ->filterTable('user_type', Profile::USER_TYPE_TEACHER)
+            ->assertCanSeeTableRecords([$teacher])
+            ->assertCanNotSeeTableRecords([$studentLinked, $studentUnlinked])
+            ->removeTableFilters()
+            ->filterTable('program', 'Administración')
+            ->assertCanSeeTableRecords([$studentUnlinked])
+            ->assertCanNotSeeTableRecords([$studentLinked, $teacher])
+            ->removeTableFilters()
+            ->filterTable('cycle', 6)
+            ->assertCanSeeTableRecords([$studentLinked])
+            ->assertCanNotSeeTableRecords([$studentUnlinked, $teacher])
+            ->removeTableFilters()
+            ->filterTable('has_user', true)
+            ->assertCanSeeTableRecords([$studentLinked])
+            ->assertCanNotSeeTableRecords([$studentUnlinked, $teacher])
+            ->filterTable('has_user', false)
+            ->assertCanSeeTableRecords([$studentUnlinked, $teacher])
+            ->assertCanNotSeeTableRecords([$studentLinked]);
     }
 
     /**
