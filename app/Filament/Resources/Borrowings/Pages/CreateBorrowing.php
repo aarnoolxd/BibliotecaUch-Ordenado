@@ -8,7 +8,6 @@ use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Models\Profile;
 use Carbon\Carbon;
-use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -37,7 +36,7 @@ class CreateBorrowing extends CreateRecord
             Notification::make()
                 ->danger()
                 ->title('DNI no encontrado')
-                ->body('El DNI ingresado no existe en el sistema. Debe registrar previamente el perfil del estudiante.')
+                ->body('Registra primero el perfil del estudiante.')
                 ->persistent()
                 ->send();
 
@@ -86,8 +85,8 @@ class CreateBorrowing extends CreateRecord
             if ($primaryEquipment === null) {
                 Notification::make()
                     ->danger()
-                    ->title('Recurso inválido')
-                    ->body('El recurso seleccionado no existe en el catálogo.')
+                    ->title('Equipo no encontrado')
+                    ->body('El equipo seleccionado ya no existe.')
                     ->send();
 
                 throw ValidationException::withMessages([
@@ -104,8 +103,8 @@ class CreateBorrowing extends CreateRecord
             if ($primaryEquipment->status !== 'Disponible') {
                 Notification::make()
                     ->danger()
-                    ->title('Recurso no disponible')
-                    ->body("El recurso seleccionado no se encuentra disponible (Estado actual: {$primaryEquipment->status}). No se puede registrar el préstamo.")
+                    ->title('Equipo no disponible')
+                    ->body("Estado actual: {$primaryEquipment->status}.")
                     ->persistent()
                     ->send();
 
@@ -135,7 +134,7 @@ class CreateBorrowing extends CreateRecord
                 Notification::make()
                     ->danger()
                     ->title('Dispositivo no disponible')
-                    ->body("El dispositivo '{$additional->brand} {$additional->model}' no se encuentra disponible (Estado actual: {$additional->status}).")
+                    ->body("{$additional->brand} {$additional->model} está {$additional->status}.")
                     ->persistent()
                     ->send();
 
@@ -179,8 +178,8 @@ class CreateBorrowing extends CreateRecord
         if ($claimed !== count($allIds)) {
             Notification::make()
                 ->danger()
-                ->title('Recurso no disponible')
-                ->body('Alguno de los recursos seleccionados dejó de estar disponible antes de confirmar el préstamo.')
+                ->title('Equipo no disponible')
+                ->body('Un equipo dejó de estar disponible.')
                 ->persistent()
                 ->send();
 
@@ -201,22 +200,18 @@ class CreateBorrowing extends CreateRecord
         return $borrowing;
     }
 
-    protected function getCreateFormAction(): Action
+    protected function getCreateConfirmationHeading(): string
     {
-        return parent::getCreateFormAction()
-            ->requiresConfirmation()
-            ->modalHeading('Confirmar registro de préstamo')
-            ->modalDescription('¿Está seguro de que desea registrar este préstamo? Los recursos seleccionados pasarán al estado "Prestado" y quedarán asignados al estudiante.')
-            ->modalSubmitActionLabel('Confirmar y Registrar Préstamo');
+        return '¿Registrar préstamo?';
+    }
+
+    protected function getCreateConfirmationDescription(): string
+    {
+        return 'Los equipos pasarán a estado Prestado.';
     }
 
     protected function getCreatedNotificationTitle(): ?string
     {
-        return 'Préstamo registrado exitosamente en estado "En curso"';
-    }
-
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
+        return 'Préstamo registrado';
     }
 }

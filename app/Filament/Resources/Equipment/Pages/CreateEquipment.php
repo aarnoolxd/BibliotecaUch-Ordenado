@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Equipment\Pages;
 
 use App\Filament\Resources\CreateRecord;
 use App\Filament\Resources\Equipment\EquipmentResource;
-use Filament\Actions\Action;
 
 class CreateEquipment extends CreateRecord
 {
@@ -18,24 +17,19 @@ class CreateEquipment extends CreateRecord
         return $data;
     }
 
-    protected function getCreateFormAction(): Action
+    protected function getCreateConfirmationHeading(): string
     {
-        return parent::getCreateFormAction()
-            ->requiresConfirmation()
-            ->modalHeading('Confirmar registro de nuevo equipo')
-            ->modalDescription('¿Está seguro de que desea registrar este recurso en el inventario con el estado inicial Disponible?')
-            ->modalSubmitActionLabel('Confirmar y Registrar');
+        return '¿Registrar equipo?';
+    }
+
+    protected function getCreateConfirmationDescription(): string
+    {
+        return 'Ingresará al inventario como Disponible.';
     }
 
     protected function getCreatedNotificationTitle(): ?string
     {
         // Criterio 5 / UB-71: Notificación de éxito en pantalla
-        return 'Equipo registrado exitosamente en el catálogo';
-    }
-
-    protected function getRedirectUrl(): string
-    {
-        // Refrescar y listar inmediatamente el nuevo equipo en el catálogo
-        return $this->getResource()::getUrl('index');
+        return 'Equipo registrado';
     }
 }

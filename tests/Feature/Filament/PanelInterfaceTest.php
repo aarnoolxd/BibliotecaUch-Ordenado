@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Filament;
 
+use App\Filament\Resources\Equipment\EquipmentResource;
 use App\Filament\Resources\Equipment\Pages\CreateEquipment;
+use App\Filament\Resources\Equipment\Pages\EditEquipment;
 use App\Filament\Resources\Users\UserResource;
 use App\Filament\Widgets\AfluenceDaysHoursChart;
 use App\Filament\Widgets\BorrowingOverviewStats;
@@ -157,7 +159,113 @@ class PanelInterfaceTest extends TestCase
             ->assertSet('data.patrimonial_code', null)
             ->assertSet('data.brand', null)
             ->assertSet('data.model', null)
-            ->assertNotified('Campos limpiados exitosamente');
+            ->assertNotified('Formulario limpiado');
+    }
+
+    /**
+     * La acción Crear de CreateRecord valida el formulario antes de abrir el modal de confirmación
+     * y, al confirmar, registra el equipo, notifica y redirige al índice.
+     */
+    public function test_create_record_action_validates_before_confirming_and_redirects_to_index(): void
+    {
+        $this->signInWithPermissions('ViewAny_Equipment', 'Create_Equipment');
+        $createAction = TestAction::make('create')->schemaComponent('form-actions', schema: 'content');
+
+        Livewire::test(CreateEquipment::class)
+            ->fillForm([
+                'patrimonial_code' => '',
+                'type' => null,
+                'brand' => '',
+                'model' => '',
+                'serial_number' => '',
+            ])
+            ->mountAction($createAction)
+            ->assertHasFormErrors(['patrimonial_code', 'type', 'brand', 'model', 'serial_number'])
+            ->assertActionNotMounted($createAction);
+
+        $createComponent = Livewire::test(CreateEquipment::class)
+            ->fillForm([
+                'patrimonial_code' => 'UCH-EQ-99001',
+                'type' => 'Laptop',
+                'brand' => 'Lenovo',
+                'model' => 'ThinkPad E14',
+                'serial_number' => 'SN-99001-CONF',
+            ])
+            ->mountAction($createAction)
+            ->assertActionMounted($createAction);
+
+        $mountedCreateAction = $createComponent->instance()->getMountedAction();
+
+        $this->assertNotNull($mountedCreateAction);
+        $this->assertFalse($mountedCreateAction->canSubmitForm());
+        $this->assertTrue($mountedCreateAction->isConfirmationRequired());
+        $this->assertSame('¿Registrar equipo?', $mountedCreateAction->getModalHeading());
+
+        $createComponent
+            ->callMountedAction()
+            ->assertHasNoFormErrors()
+            ->assertNotified('Equipo registrado')
+            ->assertRedirect(EquipmentResource::getUrl('index'));
+
+        $this->assertDatabaseHas('equipment', [
+            'patrimonial_code' => 'UCH-EQ-99001',
+            'status' => 'Disponible',
+        ]);
+    }
+
+    /**
+     * La acción Guardar de EditRecord valida el formulario antes de abrir el modal de confirmación
+     * y, al confirmar, persiste los cambios, notifica y redirige al índice.
+     */
+    public function test_edit_record_action_validates_before_confirming_and_redirects_to_index(): void
+    {
+        $equipment = Equipment::factory()->create([
+            'patrimonial_code' => 'UCH-EQ-99002',
+            'brand' => 'Dell',
+            'model' => 'Latitude 5420',
+            'serial_number' => 'SN-99002-CONF',
+            'status' => 'Disponible',
+        ]);
+        $this->signInWithPermissions('ViewAny_Equipment', 'Update_Equipment');
+        $saveAction = TestAction::make('save')->schemaComponent('form-actions', schema: 'content');
+
+        Livewire::test(EditEquipment::class, ['record' => $equipment->getRouteKey()])
+            ->fillForm([
+                'patrimonial_code' => 'AB',
+            ])
+            ->mountAction($saveAction)
+            ->assertHasFormErrors(['patrimonial_code'])
+            ->assertActionNotMounted($saveAction);
+
+        $editComponent = Livewire::test(EditEquipment::class, ['record' => $equipment->getRouteKey()])
+            ->fillForm([
+                'patrimonial_code' => 'UCH-EQ-99002',
+                'type' => $equipment->type,
+                'brand' => 'Dell Pro',
+                'model' => 'Latitude 5420',
+                'serial_number' => 'SN-99002-CONF',
+                'status' => 'Mantenimiento',
+            ])
+            ->mountAction($saveAction)
+            ->assertActionMounted($saveAction);
+
+        $mountedSaveAction = $editComponent->instance()->getMountedAction();
+
+        $this->assertNotNull($mountedSaveAction);
+        $this->assertFalse($mountedSaveAction->canSubmitForm());
+        $this->assertTrue($mountedSaveAction->isConfirmationRequired());
+        $this->assertSame('¿Guardar cambios?', $mountedSaveAction->getModalHeading());
+
+        $editComponent
+            ->callMountedAction()
+            ->assertHasNoFormErrors()
+            ->assertNotified('Equipo actualizado')
+            ->assertRedirect(EquipmentResource::getUrl('index'));
+
+        $equipment->refresh();
+
+        $this->assertSame('Dell Pro', $equipment->brand);
+        $this->assertSame('Mantenimiento', $equipment->status);
     }
 
     /**

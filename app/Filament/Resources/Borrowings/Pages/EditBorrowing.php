@@ -3,12 +3,12 @@
 namespace App\Filament\Resources\Borrowings\Pages;
 
 use App\Filament\Resources\Borrowings\BorrowingResource;
+use App\Filament\Resources\EditRecord;
 use App\Models\Borrowing;
 use App\Models\Equipment;
 use App\Models\Profile;
 use Carbon\Carbon;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 
@@ -51,7 +51,7 @@ class EditBorrowing extends EditRecord
             Notification::make()
                 ->danger()
                 ->title('DNI no encontrado')
-                ->body('El DNI ingresado no existe en el sistema. Debe registrar previamente el perfil del estudiante.')
+                ->body('Registra primero el perfil del estudiante.')
                 ->persistent()
                 ->send();
 
@@ -72,8 +72,8 @@ class EditBorrowing extends EditRecord
         if ($currentRecord->status !== Borrowing::STATUS_IN_PROGRESS) {
             Notification::make()
                 ->danger()
-                ->title('Edición no permitida')
-                ->body('Solo se pueden editar préstamos que se encuentran en estado "En curso".')
+                ->title('No editable')
+                ->body('Solo puedes editar préstamos En curso.')
                 ->send();
 
             throw ValidationException::withMessages([
@@ -268,8 +268,8 @@ class EditBorrowing extends EditRecord
                 if ($newEquipment === null || $newEquipment->status !== 'Disponible') {
                     Notification::make()
                         ->danger()
-                        ->title('Recurso no disponible')
-                        ->body('El nuevo recurso seleccionado no se encuentra disponible para reasignar el préstamo.')
+                        ->title('Equipo no disponible')
+                        ->body('El equipo elegido no está disponible.')
                         ->persistent()
                         ->send();
 
@@ -317,16 +317,13 @@ class EditBorrowing extends EditRecord
         return $updatedRecord;
     }
 
-    protected function getSavedNotification(): ?Notification
+    protected function getSaveConfirmationDescription(): string
     {
-        return Notification::make()
-            ->success()
-            ->title('Préstamo actualizado correctamente')
-            ->body('Los cambios del préstamo y sus dispositivos asignados se guardaron con éxito.');
+        return 'Se actualizará el préstamo y sus equipos.';
     }
 
-    protected function getRedirectUrl(): string
+    protected function getSavedNotificationTitle(): ?string
     {
-        return $this->getResource()::getUrl('index');
+        return 'Préstamo actualizado';
     }
 }

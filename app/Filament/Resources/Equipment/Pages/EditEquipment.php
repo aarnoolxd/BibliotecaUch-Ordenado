@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\Equipment\Pages;
 
+use App\Filament\Resources\EditRecord;
 use App\Filament\Resources\Equipment\EquipmentResource;
 use App\Models\Equipment;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Locked;
@@ -53,8 +53,8 @@ class EditEquipment extends EditRecord
                 || $lockedEquipment->observations !== $this->loadedObservations
             ) {
                 Notification::make()
-                    ->title('El registro fue modificado')
-                    ->body('El estado o las observaciones de este equipo cambiaron desde que cargaste el formulario. Recarga el registro para ver los datos actuales antes de guardar.')
+                    ->title('Registro desactualizado')
+                    ->body('El equipo cambió mientras editabas. Recarga antes de guardar.')
                     ->danger()
                     ->persistent()
                     ->send();
@@ -73,13 +73,13 @@ class EditEquipment extends EditRecord
         });
     }
 
-    protected function getSavedNotificationTitle(): ?string
+    protected function getSaveConfirmationDescription(): string
     {
-        return 'Equipo actualizado exitosamente';
+        return 'Se actualizarán los datos del equipo.';
     }
 
-    protected function getRedirectUrl(): string
+    protected function getSavedNotificationTitle(): ?string
     {
-        return $this->getResource()::getUrl('index');
+        return 'Equipo actualizado';
     }
 }

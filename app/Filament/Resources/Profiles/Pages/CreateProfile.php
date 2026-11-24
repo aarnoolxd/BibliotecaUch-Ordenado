@@ -5,7 +5,6 @@ namespace App\Filament\Resources\Profiles\Pages;
 use App\Filament\Resources\CreateRecord;
 use App\Filament\Resources\Profiles\ProfileResource;
 use App\Filament\Resources\Profiles\Schemas\ProfileForm;
-use Filament\Actions\Action;
 
 class CreateProfile extends CreateRecord
 {
@@ -20,22 +19,18 @@ class CreateProfile extends CreateRecord
         return ProfileForm::normalizeAcademicData($data);
     }
 
-    protected function getCreateFormAction(): Action
+    protected function getCreateConfirmationHeading(): string
     {
-        return parent::getCreateFormAction()
-            ->requiresConfirmation()
-            ->modalHeading('Confirmar registro de metadatos del perfil')
-            ->modalDescription('¿Está seguro de que desea registrar estos metadatos personales para el perfil con los datos ingresados?')
-            ->modalSubmitActionLabel('Confirmar y Registrar');
+        return '¿Registrar perfil?';
+    }
+
+    protected function getCreateConfirmationDescription(): string
+    {
+        return 'Se guardarán los datos del perfil.';
     }
 
     protected function getCreatedNotificationTitle(): ?string
     {
-        return 'Metadatos personales del perfil registrados exitosamente';
-    }
-
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
+        return 'Perfil registrado';
     }
 }

@@ -135,11 +135,16 @@ class ProfilesTable
                 ProfileResource::profileDetailsAction(),
                 EditAction::make(),
                 DeleteAction::make()
+                    ->modalHeading('¿Eliminar perfil?')
+                    ->modalDescription('Esta acción no se puede deshacer.')
+                    ->modalSubmitActionLabel('Eliminar')
+                    ->modalCancelActionLabel('Cancelar')
+                    ->successNotificationTitle('Perfil eliminado')
                     ->before(function (DeleteAction $action, Profile $record): void {
                         if ($record->hasActiveBorrowing()) {
                             Notification::make()
-                                ->title('No se puede eliminar el perfil')
-                                ->body('Este perfil mantiene préstamos activos (en curso o vencidos). Registre primero su devolución.')
+                                ->title('No se puede eliminar')
+                                ->body('Tiene préstamos activos.')
                                 ->danger()
                                 ->send();
 

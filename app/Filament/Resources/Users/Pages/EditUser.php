@@ -2,30 +2,20 @@
 
 namespace App\Filament\Resources\Users\Pages;
 
+use App\Filament\Resources\EditRecord;
 use App\Filament\Resources\Users\UserResource;
-use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
 
 class EditUser extends EditRecord
 {
     protected static string $resource = UserResource::class;
 
-    protected function getSavedNotification(): ?Notification
+    protected function getSaveConfirmationDescription(): string
     {
-        return Notification::make()
-            ->success()
-            ->title('Cuenta actualizada correctamente')
-            ->body('Los datos y roles de la cuenta se guardaron con éxito.');
+        return 'Se actualizarán los datos y roles.';
     }
 
-    protected function getRedirectUrl(): ?string
+    protected function getSavedNotificationTitle(): ?string
     {
-        $resource = $this->getResource();
-
-        if ($resource::canViewAny()) {
-            return $resource::getUrl('index');
-        }
-
-        return parent::getRedirectUrl();
+        return 'Cuenta actualizada';
     }
 }

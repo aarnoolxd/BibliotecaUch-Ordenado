@@ -358,7 +358,7 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('create')
             ->assertHasNoFormErrors()
-            ->assertNotified('Préstamo registrado exitosamente en estado "En curso"')
+            ->assertNotified('Préstamo registrado')
             ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $borrowing = Borrowing::query()->with('additionalEquipment')->where('student_dni', '73334444')->firstOrFail();
@@ -427,7 +427,7 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('create')
             ->assertHasNoFormErrors()
-            ->assertNotified('Préstamo registrado exitosamente en estado "En curso"');
+            ->assertNotified('Préstamo registrado');
 
         $borrowing = Borrowing::query()->with('additionalEquipment')->where('student_dni', $profile->dni)->firstOrFail();
 
@@ -554,7 +554,7 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('Préstamo actualizado correctamente')
+            ->assertNotified('Préstamo actualizado')
             ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $borrowing->refresh();
@@ -595,7 +595,7 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('Préstamo actualizado correctamente')
+            ->assertNotified('Préstamo actualizado')
             ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $borrowing->refresh()->load('additionalEquipment');
@@ -739,7 +739,7 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('Préstamo actualizado correctamente')
+            ->assertNotified('Préstamo actualizado')
             ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $borrowing->refresh();
@@ -805,7 +805,7 @@ class BorrowingResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('Préstamo actualizado correctamente')
+            ->assertNotified('Préstamo actualizado')
             ->assertRedirect(BorrowingResource::getUrl('index'));
 
         $this->assertSame($newEquipment->getKey(), $borrowing->fresh()->equipment_id);
@@ -1480,7 +1480,7 @@ class BorrowingResourceTest extends TestCase
 
         $component
             ->callMountedAction()
-            ->assertNotified('No se pudo registrar la devolución');
+            ->assertNotified('No se pudo devolver');
 
         $this->assertSame(Borrowing::STATUS_IN_PROGRESS, $borrowing->fresh()->status);
         $this->assertDatabaseCount('equipment_incidents', 0);

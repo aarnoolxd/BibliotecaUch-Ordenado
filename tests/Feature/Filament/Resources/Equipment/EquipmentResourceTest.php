@@ -258,7 +258,7 @@ class EquipmentResourceTest extends TestCase
             ->set('data.status', 'Baja')
             ->call('create')
             ->assertHasNoFormErrors()
-            ->assertNotified('Equipo registrado exitosamente en el catálogo')
+            ->assertNotified('Equipo registrado')
             ->assertRedirect(EquipmentResource::getUrl('index'));
 
         $created = Equipment::query()->where('patrimonial_code', 'UCH-EQ-00123')->firstOrFail();
@@ -301,7 +301,7 @@ class EquipmentResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('Equipo actualizado exitosamente')
+            ->assertNotified('Equipo actualizado')
             ->assertRedirect(EquipmentResource::getUrl('index'));
 
         $equipment->refresh();
@@ -442,16 +442,16 @@ class EquipmentResourceTest extends TestCase
 
         Livewire::test(ListEquipments::class)
             ->callAction(TestAction::make(DeleteAction::class)->table($primary))
-            ->assertNotified('No se puede eliminar el equipo');
+            ->assertNotified('No se puede eliminar');
 
         Livewire::test(ListEquipments::class)
             ->callAction(TestAction::make(DeleteAction::class)->table($additional))
-            ->assertNotified('No se puede eliminar el equipo');
+            ->assertNotified('No se puede eliminar');
 
         Livewire::test(ListEquipments::class)
             ->selectTableRecords([$primary, $freeEquipment])
             ->callAction(TestAction::make(DeleteBulkAction::class)->table()->bulk())
-            ->assertNotified('No se pueden eliminar los equipos seleccionados');
+            ->assertNotified('No se pueden eliminar');
 
         $this->assertModelExists($primary);
         $this->assertModelExists($additional);
@@ -671,7 +671,7 @@ class EquipmentResourceTest extends TestCase
                 'decommission_reason' => 'Placa madre quemada sin repuesto disponible.',
             ])
             ->assertHasNoFormErrors()
-            ->assertNotified('Equipo descontinuado exitosamente')
+            ->assertNotified('Equipo descontinuado')
             ->assertActionHidden(TestAction::make('discontinue')->table($equipment));
 
         $equipment->refresh();
@@ -729,13 +729,13 @@ class EquipmentResourceTest extends TestCase
             ->callAction(TestAction::make('discontinue')->table($primary), [
                 'decommission_reason' => 'Intento de baja durante préstamo activo.',
             ])
-            ->assertNotified('Operación no permitida');
+            ->assertNotified('No se puede descontinuar');
 
         Livewire::test(ListEquipments::class)
             ->callAction(TestAction::make('discontinue')->table($additional), [
                 'decommission_reason' => 'Intento de baja de periférico en préstamo.',
             ])
-            ->assertNotified('Operación no permitida');
+            ->assertNotified('No se puede descontinuar');
 
         $this->assertSame(Equipment::DISCONTINUE_ACTIVE_BORROWING, $primary->discontinue('Motivo directo.'));
         $this->assertSame('Prestado', $primary->fresh()->status);
@@ -799,7 +799,7 @@ class EquipmentResourceTest extends TestCase
                 'decommission_reason' => '12345',
             ])
             ->assertHasNoFormErrors()
-            ->assertNotified('Equipo descontinuado exitosamente');
+            ->assertNotified('Equipo descontinuado');
 
         $equipment->refresh();
 
@@ -846,7 +846,7 @@ class EquipmentResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('El registro fue modificado')
+            ->assertNotified('Registro desactualizado')
             ->assertNoRedirect();
 
         $discontinuedConcurrently->refresh();
@@ -878,7 +878,7 @@ class EquipmentResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('El registro fue modificado')
+            ->assertNotified('Registro desactualizado')
             ->assertNoRedirect();
 
         $observationsChangedConcurrently->refresh();
@@ -908,7 +908,7 @@ class EquipmentResourceTest extends TestCase
                 'decommission_reason' => str_repeat('R', 500),
             ])
             ->assertHasNoFormErrors()
-            ->assertNotified('Equipo descontinuado exitosamente');
+            ->assertNotified('Equipo descontinuado');
 
         $withoutObservations->refresh();
 
@@ -929,7 +929,7 @@ class EquipmentResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('Equipo actualizado exitosamente');
+            ->assertNotified('Equipo actualizado');
 
         $this->assertSame('Dell Actualizada', $withoutObservations->fresh()->brand);
 

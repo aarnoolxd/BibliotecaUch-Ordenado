@@ -89,7 +89,7 @@ class UserResourceTest extends TestCase
             ])
             ->callAction(TestAction::make('create')->schemaComponent('form-actions', schema: 'content'))
             ->assertHasNoFormErrors()
-            ->assertNotified('Cuenta creada exitosamente')
+            ->assertNotified('Cuenta creada')
             ->assertRedirect(UserResource::getUrl('index'));
 
         $createdUser = User::query()->where('email', 'carlos.ramos@uch.pe')->firstOrFail();
@@ -154,7 +154,7 @@ class UserResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('Cuenta actualizada correctamente')
+            ->assertNotified('Cuenta actualizada')
             ->assertRedirect(UserResource::getUrl('index'));
 
         $target->refresh();
@@ -186,7 +186,7 @@ class UserResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('Cuenta actualizada correctamente')
+            ->assertNotified('Cuenta actualizada')
             ->assertRedirect(UserResource::getUrl('index'));
 
         $this->assertTrue(Hash::check('NuevaClave2@', $target->fresh()->password));
@@ -315,11 +315,11 @@ class UserResourceTest extends TestCase
 
         Livewire::test(ListUsers::class)
             ->callAction(TestAction::make(DeleteAction::class)->table($operatorWithActiveBorrowing))
-            ->assertNotified('No se puede eliminar la cuenta');
+            ->assertNotified('No se puede eliminar');
 
         Livewire::test(ListUsers::class)
             ->callAction(TestAction::make(DeleteAction::class)->table($studentUserWithActiveBorrowing))
-            ->assertNotified('No se puede eliminar la cuenta');
+            ->assertNotified('No se puede eliminar');
 
         $this->assertFalse($operatorWithActiveBorrowing->delete());
         $this->assertFalse($studentUserWithActiveBorrowing->delete());

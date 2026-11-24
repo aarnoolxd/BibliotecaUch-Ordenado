@@ -70,11 +70,16 @@ class UsersTable
             ->recordActions([
                 EditAction::make(),
                 DeleteAction::make()
+                    ->modalHeading('¿Eliminar cuenta?')
+                    ->modalDescription('Esta acción no se puede deshacer.')
+                    ->modalSubmitActionLabel('Eliminar')
+                    ->modalCancelActionLabel('Cancelar')
+                    ->successNotificationTitle('Cuenta eliminada')
                     ->before(function (DeleteAction $action, User $record): void {
                         if ($record->hasActiveBorrowing()) {
                             Notification::make()
-                                ->title('No se puede eliminar la cuenta')
-                                ->body('Esta cuenta posee préstamos activos asociados. Cierre o devuelva primero dichos préstamos.')
+                                ->title('No se puede eliminar')
+                                ->body('Tiene préstamos activos.')
                                 ->danger()
                                 ->send();
 
