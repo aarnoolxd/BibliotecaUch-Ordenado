@@ -2,14 +2,17 @@
 
 namespace App\Filament\Resources\Equipment\Tables;
 
+use App\Models\Equipment;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 
 class EquipmentTable
 {
@@ -92,11 +95,37 @@ class EquipmentTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->before(function (DeleteAction $action, Equipment $record): void {
+                        if ($record->hasActiveBorrowing()) {
+                            Notification::make()
+                                ->title('No se puede eliminar el equipo')
+                                ->body('Este recurso está asociado a un préstamo activo. Registre primero su devolución.')
+                                ->danger()
+                                ->send();
+
+                            $action->cancel();
+                        }
+                    }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->before(function (DeleteBulkAction $action, Collection $records): void {
+                            $hasActiveBorrowing = $records->contains(
+                                fn (Equipment $record): bool => $record->hasActiveBorrowing(),
+                            );
+
+                            if ($hasActiveBorrowing) {
+                                Notification::make()
+                                    ->title('No se pueden eliminar los equipos seleccionados')
+                                    ->body('Uno o más equipos seleccionados están asociados a un préstamo activo. Registre primero su devolución.')
+                                    ->danger()
+                                    ->send();
+
+                                $action->cancel();
+                            }
+                        }),
                 ]),
             ]);
     }

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Policies;
 
 use App\Models\Borrowing;
-use Illuminate\Foundation\Auth\User as AuthUser;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Foundation\Auth\User as AuthUser;
 
 class BorrowingPolicy
 {
@@ -29,7 +29,14 @@ class BorrowingPolicy
 
     public function update(AuthUser $authUser, Borrowing $borrowing): bool
     {
-        return $authUser->can('Update_Borrowing');
+        return $authUser->can('Update_Borrowing')
+            && $borrowing->status === Borrowing::STATUS_IN_PROGRESS;
+    }
+
+    public function registerReturn(AuthUser $authUser, Borrowing $borrowing): bool
+    {
+        return $authUser->can('Update_Borrowing')
+            && in_array($borrowing->status, Borrowing::ACTIVE_STATUSES, true);
     }
 
     public function delete(AuthUser $authUser, Borrowing $borrowing): bool

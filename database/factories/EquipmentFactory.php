@@ -47,4 +47,24 @@ class EquipmentFactory extends Factory
             'type' => $type,
         ]);
     }
+
+    /**
+     * Crea un equipo principal (Computadora o Laptop).
+     */
+    public function primary(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'type' => fake()->randomElement(Equipment::PRIMARY_BORROWING_TYPES),
+        ]);
+    }
+
+    /**
+     * Crea un dispositivo adicional (Periférico u Otro).
+     */
+    public function additional(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'type' => fake()->randomElement(Equipment::ADDITIONAL_BORROWING_TYPES),
+        ]);
+    }
 }

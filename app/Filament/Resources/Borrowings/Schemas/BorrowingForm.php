@@ -11,15 +11,32 @@ use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class BorrowingForm
 {
+    /**
+     * Determina si el equipo principal seleccionado corresponde a una Computadora
+     * y por lo tanto requiere fecha límite de devolución (+2 horas).
+     */
+    public static function requiresDueDate(mixed $equipmentId): bool
+    {
+        if (blank($equipmentId)) {
+            return false;
+        }
+
+        return Equipment::query()
+            ->whereKey((int) $equipmentId)
+            ->where('type', 'Computadora')
+            ->exists();
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
             ->components([
-                // Subtarea [UB-145] / Criterio 2: Validar existencia del DNI en el sistema
                 TextInput::make('student_dni')
                     ->label('DNI del Estudiante')
                     ->placeholder('Ingrese DNI de 8 dígitos')
@@ -28,7 +45,7 @@ class BorrowingForm
                     ->length(8)
                     ->regex('/^[0-9]{8}$/')
                     ->live(onBlur: true)
-                    ->afterStateUpdated(function ($state, callable $set): void {
+                    ->afterStateUpdated(function (?string $state, Set $set): void {
                         if (blank($state)) {
                             $set('profile_id', null);
                             $set('student_name', null);
@@ -36,8 +53,9 @@ class BorrowingForm
                             return;
                         }
 
-                        $profile = Profile::where('dni', trim($state))->first();
-                        if ($profile) {
+                        $profile = Profile::query()->where('dni', trim($state))->first();
+
+                        if ($profile !== null) {
                             $set('profile_id', $profile->id);
                             $set('student_name', $profile->full_name);
                         } else {
@@ -46,8 +64,9 @@ class BorrowingForm
                         }
                     })
                     ->rules([
-                        fn (): Closure => function (string $attribute, $value, Closure $fail): void {
-                            $exists = Profile::where('dni', trim($value))->exists();
+                        fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                            $exists = Profile::query()->where('dni', trim((string) $value))->exists();
+
                             if (! $exists) {
                                 $fail('El DNI ingresado no se encuentra registrado en el sistema. Debe registrar previamente el perfil del estudiante.');
                             }
@@ -75,44 +94,75 @@ class BorrowingForm
                     ->hidden()
                     ->dehydrated(),
 
-                // Subtarea [UB-142] / Criterio 3: Verificar que el recurso seleccionado esté en estado "Disponible"
                 Select::make('equipment_id')
-                    ->label('Equipo / Recurso a prestar')
-                    ->placeholder('Seleccione un recurso disponible')
-                    ->helperText('Solo se permite seleccionar equipos con estado operativo "Disponible".')
-                    ->required()
+                    ->label('Equipo Principal (PC o Laptop)')
+                    ->placeholder('Ninguno / Seleccione una Computadora o Laptop disponible')
+                    ->helperText('Opcional si solo prestará periféricos u otros dispositivos. Solo permite Computadoras y Laptops.')
+                    ->nullable()
+                    ->requiredWithout('additional_equipment_ids')
                     ->searchable()
                     ->preload()
-                    ->options(function () {
-                        return Equipment::all()->mapWithKeys(function ($item) {
-                            $label = "[{$item->patrimonial_code}] {$item->brand} {$item->model} ({$item->type}) - Estado: {$item->status}";
+                    ->disabled(fn (?Borrowing $record): bool => $record !== null && $record->status !== Borrowing::STATUS_IN_PROGRESS)
+                    ->dehydrated()
+                    ->options(function (?Borrowing $record): array {
+                        $currentEquipmentId = $record?->equipment_id;
 
-                            return [$item->id => $label];
-                        });
+                        return Equipment::query()
+                            // Filtra solo Computadora o Laptop disponibles (incluyendo el asignado actualmente al editar)
+                            ->whereIn('type', Equipment::PRIMARY_BORROWING_TYPES)
+                            ->where(function ($query) use ($currentEquipmentId): void {
+                                $query->where('status', 'Disponible')
+                                    ->when(
+                                        $currentEquipmentId !== null,
+                                        fn ($innerQuery) => $innerQuery->orWhereKey($currentEquipmentId),
+                                    );
+                            })
+                            ->orderBy('patrimonial_code')
+                            ->get()
+                            ->mapWithKeys(function (Equipment $item): array {
+                                $label = "[{$item->patrimonial_code}] {$item->brand} {$item->model} ({$item->type})";
+
+                                return [$item->id => $label];
+                            })
+                            ->all();
                     })
                     ->live()
-                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
-                        if (! $state) {
+                    ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
+                        if (blank($state)) {
+                            $set('due_date', null);
+
                             return;
                         }
 
-                        $equipment = Equipment::find($state);
-                        if (! $equipment) {
+                        $equipment = Equipment::query()->find((int) $state);
+
+                        if ($equipment === null) {
+                            $set('due_date', null);
+
                             return;
                         }
 
-                        // Criterio 4 / Subtarea [UB-141]: Calcular automáticamente la fecha límite de devolución según tipo de recurso
                         $borrowingDateString = $get('borrowing_date') ?: now()->toDateTimeString();
-                        $baseDate = Carbon::parse($borrowingDateString);
-                        $calculatedDueDate = Borrowing::calculateDueDate($equipment->type, $baseDate);
+                        $calculatedDueDate = Borrowing::calculateDueDate($equipment->type, Carbon::parse($borrowingDateString));
 
-                        $set('due_date', $calculatedDueDate->format('Y-m-d H:i:s'));
+                        $set('due_date', $calculatedDueDate?->format('Y-m-d H:i:s'));
                     })
                     ->rules([
-                        fn (?Borrowing $record): Closure => function (string $attribute, $value, Closure $fail) use ($record): void {
-                            $equipment = Equipment::find($value);
-                            if (! $equipment) {
+                        fn (?Borrowing $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+                            if (blank($value)) {
+                                return;
+                            }
+
+                            $equipment = Equipment::query()->find((int) $value);
+
+                            if ($equipment === null) {
                                 $fail('El recurso seleccionado no existe.');
+
+                                return;
+                            }
+
+                            if (! in_array($equipment->type, Equipment::PRIMARY_BORROWING_TYPES, true)) {
+                                $fail('Solo puede seleccionar una Computadora o Laptop como equipo principal.');
 
                                 return;
                             }
@@ -127,51 +177,134 @@ class BorrowingForm
                         },
                     ])
                     ->validationMessages([
-                        'required' => 'Debe seleccionar un equipo para registrar el préstamo.',
+                        'required_without' => 'Debe seleccionar al menos un equipo principal o un dispositivo adicional para registrar el préstamo.',
                     ]),
 
-                // Subtarea [UB-141] / Criterio 4: Registrar fecha y hora del préstamo junto con fecha límite
+                Select::make('additional_equipment_ids')
+                    ->label('Periféricos / Otros Dispositivos (Opcional)')
+                    ->placeholder('Seleccione uno o más periféricos u otros dispositivos disponibles')
+                    ->helperText('Opcional. Puede agregar varios periféricos u otros recursos junto a un equipo o prestarlos de forma independiente.')
+                    ->multiple()
+                    ->searchable()
+                    ->preload()
+                    ->nullable()
+                    ->disabled(fn (?Borrowing $record): bool => $record !== null && $record->status !== Borrowing::STATUS_IN_PROGRESS)
+                    ->dehydrated()
+                    ->afterStateHydrated(function (Select $component, ?Borrowing $record): void {
+                        if ($record !== null) {
+                            $component->state(
+                                $record->additionalEquipment()
+                                    ->pluck('equipment.id')
+                                    ->map(fn (mixed $id): int => (int) $id)
+                                    ->all(),
+                            );
+                        }
+                    })
+                    ->options(function (?Borrowing $record): array {
+                        $currentAdditionalIds = $record !== null
+                            ? $record->additionalEquipment()->pluck('equipment.id')->all()
+                            : [];
+
+                        return Equipment::query()
+                            ->whereIn('type', Equipment::ADDITIONAL_BORROWING_TYPES)
+                            ->where(function ($query) use ($currentAdditionalIds): void {
+                                $query->where('status', 'Disponible')
+                                    ->when(
+                                        $currentAdditionalIds !== [],
+                                        fn ($innerQuery) => $innerQuery->orWhereIn('id', $currentAdditionalIds),
+                                    );
+                            })
+                            ->orderBy('patrimonial_code')
+                            ->get()
+                            ->mapWithKeys(function (Equipment $item): array {
+                                $label = "[{$item->patrimonial_code}] {$item->brand} {$item->model}";
+
+                                return [$item->id => $label];
+                            })
+                            ->all();
+                    })
+                    ->rules([
+                        fn (?Borrowing $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+                            if (blank($value) || ! is_array($value)) {
+                                return;
+                            }
+
+                            $selectedIds = array_values(array_unique(array_map('intval', $value)));
+                            $existingIds = $record !== null
+                                ? $record->additionalEquipment()->pluck('equipment.id')->map(fn (mixed $id): int => (int) $id)->all()
+                                : [];
+
+                            $equipments = Equipment::query()
+                                ->whereIn('id', $selectedIds)
+                                ->get()
+                                ->keyBy('id');
+
+                            foreach ($selectedIds as $equipmentId) {
+                                /** @var Equipment|null $item */
+                                $item = $equipments->get($equipmentId);
+
+                                if ($item === null) {
+                                    $fail('Uno de los dispositivos adicionales seleccionados no existe en el catálogo.');
+
+                                    return;
+                                }
+
+                                if (! in_array($item->type, Equipment::ADDITIONAL_BORROWING_TYPES, true)) {
+                                    $fail("El recurso '{$item->brand} {$item->model}' no pertenece a la categoría Periférico u Otro.");
+
+                                    return;
+                                }
+
+                                if (! in_array($equipmentId, $existingIds, true) && $item->status !== 'Disponible') {
+                                    $fail("El dispositivo '{$item->brand} {$item->model}' no se encuentra disponible (Estado actual: {$item->status}).");
+
+                                    return;
+                                }
+                            }
+                        },
+                    ]),
+
                 DateTimePicker::make('borrowing_date')
                     ->label('Fecha y Hora del Préstamo')
                     ->default(fn () => now())
                     ->required()
                     ->native(false)
                     ->live()
-                    ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                    ->afterStateUpdated(function (mixed $state, Set $set, Get $get): void {
                         $equipmentId = $get('equipment_id');
-                        if (! $equipmentId || ! $state) {
+
+                        if (blank($equipmentId) || blank($state)) {
+                            $set('due_date', null);
+
                             return;
                         }
 
-                        $equipment = Equipment::find($equipmentId);
-                        if (! $equipment) {
+                        $equipment = Equipment::query()->find((int) $equipmentId);
+
+                        if ($equipment === null) {
+                            $set('due_date', null);
+
                             return;
                         }
 
-                        $baseDate = Carbon::parse($state);
-                        $calculatedDueDate = Borrowing::calculateDueDate($equipment->type, $baseDate);
+                        $calculatedDueDate = Borrowing::calculateDueDate($equipment->type, Carbon::parse($state));
 
-                        $set('due_date', $calculatedDueDate->format('Y-m-d H:i:s'));
+                        $set('due_date', $calculatedDueDate?->format('Y-m-d H:i:s'));
                     })
-                    ->helperText('Momento en que se entrega el recurso al estudiante.'),
+                    ->helperText('Momento en que se entregan los recursos al estudiante.'),
 
                 DateTimePicker::make('due_date')
                     ->label('Fecha Límite de Devolución')
-                    ->required()
+                    ->visible(fn (Get $get): bool => self::requiresDueDate($get('equipment_id')))
+                    ->required(fn (Get $get): bool => self::requiresDueDate($get('equipment_id')))
                     ->afterOrEqual('borrowing_date')
                     ->native(false)
                     ->readOnly(fn (string $operation): bool => $operation === 'create')
                     ->validationMessages([
+                        'required' => 'La fecha límite de devolución es obligatoria para préstamos de Computadora.',
                         'after_or_equal' => 'La fecha límite de devolución no puede ser anterior a la fecha del préstamo.',
                     ])
-                    ->helperText('Calculada automáticamente según el tipo de recurso seleccionado.'),
-
-                TextInput::make('status')
-                    ->label('Estado del Préstamo')
-                    ->default('En curso')
-                    ->disabled()
-                    ->dehydrated()
-                    ->helperText('Se asigna automáticamente como "En curso" al momento de guardar.'),
+                    ->helperText('Solo aplica para Computadoras (2 horas desde el préstamo). Laptops y periféricos no tienen límite de tiempo.'),
 
                 Textarea::make('observations')
                     ->label('Observaciones del Préstamo')
