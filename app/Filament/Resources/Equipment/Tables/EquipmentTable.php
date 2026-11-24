@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Equipment\Tables;
 
 use App\Models\Equipment;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -11,6 +12,8 @@ use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -91,7 +94,34 @@ class EquipmentTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([])
+            ->filters([
+                SelectFilter::make('type')
+                    ->label('Categoría')
+                    ->placeholder('Todas las categorías')
+                    ->options([
+                        'Computadora' => 'Computadora',
+                        'Laptop' => 'Laptop',
+                        'Periférico' => 'Periférico',
+                        'Otro' => 'Otro',
+                    ])
+                    ->native(false),
+
+                SelectFilter::make('status')
+                    ->label('Estado operativo')
+                    ->placeholder('Todos los estados')
+                    ->options([
+                        'Disponible' => 'Disponible',
+                        'Prestado' => 'Prestado',
+                        'Mantenimiento' => 'Mantenimiento',
+                        'Baja' => 'Baja',
+                    ])
+                    ->native(false),
+            ], layout: FiltersLayout::Modal)
+            ->filtersTriggerAction(
+                fn (Action $action): Action => $action
+                    ->slideOver()
+                    ->modalCancelAction(false),
+            )
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
