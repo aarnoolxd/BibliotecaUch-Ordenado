@@ -10,13 +10,16 @@ use Illuminate\Support\Facades\DB;
 class BorrowingAnalyticsService
 {
     /**
-     * Resumen de préstamos por estado para las tarjetas KPI seleccionables del dashboard.
+     * Resumen de préstamos por estado para el gráfico de distribución.
      *
      * @return array{total: int, in_progress: int, returned: int, overdue: int}
      */
-    public function getOperationalSummary(): array
+    public function getOperationalSummary(?string $period = 'all'): array
     {
+        $cutoff = $this->resolvePeriodStart($period);
+
         $counts = Borrowing::query()
+            ->when($cutoff !== null, fn ($query) => $query->where('borrowing_date', '>=', $cutoff))
             ->selectRaw('status, COUNT(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');
@@ -36,22 +39,19 @@ class BorrowingAnalyticsService
      *
      * @return array{labels: list<string>, data: list<int>, empty: bool}
      */
-    public function getMostRequestedResources(?string $period = 'all', int $limit = 5, ?string $status = null): array
+    public function getMostRequestedResources(?string $period = 'all', int $limit = 5): array
     {
         $cutoff = $this->resolvePeriodStart($period);
-        $normalizedStatus = $this->normalizeStatus($status);
 
         $primaryQuery = DB::table('borrowings')
             ->selectRaw('id as borrowing_id, equipment_id')
             ->whereNotNull('equipment_id')
-            ->when($cutoff !== null, fn ($query) => $query->where('borrowing_date', '>=', $cutoff))
-            ->when($normalizedStatus !== null, fn ($query) => $query->where('status', $normalizedStatus));
+            ->when($cutoff !== null, fn ($query) => $query->where('borrowing_date', '>=', $cutoff));
 
         $additionalQuery = DB::table('borrowing_equipment')
             ->join('borrowings', 'borrowing_equipment.borrowing_id', '=', 'borrowings.id')
             ->select('borrowing_equipment.borrowing_id', 'borrowing_equipment.equipment_id')
-            ->when($cutoff !== null, fn ($query) => $query->where('borrowings.borrowing_date', '>=', $cutoff))
-            ->when($normalizedStatus !== null, fn ($query) => $query->where('borrowings.status', $normalizedStatus));
+            ->when($cutoff !== null, fn ($query) => $query->where('borrowings.borrowing_date', '>=', $cutoff));
 
         $records = DB::query()
             ->fromSub($primaryQuery->union($additionalQuery), 'requested_resources')
@@ -109,17 +109,15 @@ class BorrowingAnalyticsService
      *
      * @return array{labels: list<string>, data: list<int>, backgroundColors: list<string>, empty: bool, max_cycle: ?int}
      */
-    public function getAfluenceByCycle(?string $period = 'all', ?string $status = null): array
+    public function getAfluenceByCycle(?string $period = 'all'): array
     {
         $cutoff = $this->resolvePeriodStart($period);
-        $normalizedStatus = $this->normalizeStatus($status);
 
         $counts = Borrowing::query()
             ->join('profiles', 'borrowings.profile_id', '=', 'profiles.id')
             ->whereNotNull('profiles.cycle')
             ->whereBetween('profiles.cycle', [1, 10])
             ->when($cutoff !== null, fn ($query) => $query->where('borrowings.borrowing_date', '>=', $cutoff))
-            ->when($normalizedStatus !== null, fn ($query) => $query->where('borrowings.status', $normalizedStatus))
             ->selectRaw('profiles.cycle, COUNT(borrowings.id) as total')
             ->groupBy('profiles.cycle')
             ->pluck('total', 'profiles.cycle')
@@ -181,17 +179,15 @@ class BorrowingAnalyticsService
      *
      * @return array{labels: list<string>, data: list<int>, backgroundColors: list<string>, empty: bool}
      */
-    public function getAfluenceByDaysAndHours(string $dimension = 'days', ?string $period = 'all', ?string $status = null): array
+    public function getAfluenceByDaysAndHours(string $dimension = 'days', ?string $period = 'all'): array
     {
         $cutoff = $this->resolvePeriodStart($period);
-        $normalizedStatus = $this->normalizeStatus($status);
 
         $rows = Borrowing::query()
             ->toBase()
             ->select('borrowing_date')
             ->whereNotNull('borrowing_date')
             ->when($cutoff !== null, fn ($query) => $query->where('borrowing_date', '>=', $cutoff))
-            ->when($normalizedStatus !== null, fn ($query) => $query->where('status', $normalizedStatus))
             ->cursor();
 
         if ($dimension === 'days') {
@@ -304,17 +300,5 @@ class BorrowingAnalyticsService
             'semester' => now()->subMonths(6),
             default => null,
         };
-    }
-
-    /**
-     * Normaliza el estado de préstamo recibido para filtrar métricas analíticas.
-     */
-    private function normalizeStatus(?string $status): ?string
-    {
-        return in_array($status, [
-            Borrowing::STATUS_IN_PROGRESS,
-            Borrowing::STATUS_RETURNED,
-            Borrowing::STATUS_OVERDUE,
-        ], true) ? $status : null;
     }
 }

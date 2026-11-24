@@ -3,14 +3,14 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Borrowings\BorrowingResource;
-use App\Models\Borrowing;
 use App\Services\BorrowingAnalyticsService;
 use Filament\Widgets\ChartWidget;
-use Livewire\Attributes\On;
 
 class MostRequestedResourcesChart extends ChartWidget
 {
     protected ?string $heading = 'Recursos más solicitados';
+
+    protected ?string $description = 'Top 5 equipos y periféricos con mayor demanda. Se actualiza cada 30 segundos.';
 
     protected static ?int $sort = 3;
 
@@ -22,34 +22,9 @@ class MostRequestedResourcesChart extends ChartWidget
 
     public ?string $filter = 'all';
 
-    public ?string $borrowingStatus = null;
-
     public static function canView(): bool
     {
         return BorrowingResource::canViewAny();
-    }
-
-    #[On(BorrowingOverviewStats::STATUS_FILTER_EVENT)]
-    public function updateBorrowingStatus(?string $status): void
-    {
-        $this->borrowingStatus = in_array($status, [
-            Borrowing::STATUS_IN_PROGRESS,
-            Borrowing::STATUS_RETURNED,
-            Borrowing::STATUS_OVERDUE,
-        ], true) ? $status : null;
-
-        $this->updateChartData();
-    }
-
-    public function getDescription(): ?string
-    {
-        $base = 'Top 5 equipos y periféricos con mayor demanda. Se actualiza cada 30 segundos.';
-
-        if ($this->borrowingStatus !== null) {
-            return "{$base} Estado seleccionado: {$this->borrowingStatus}.";
-        }
-
-        return $base;
     }
 
     /**
@@ -70,11 +45,7 @@ class MostRequestedResourcesChart extends ChartWidget
      */
     protected function getData(): array
     {
-        $result = app(BorrowingAnalyticsService::class)->getMostRequestedResources(
-            period: $this->filter,
-            limit: 5,
-            status: $this->borrowingStatus,
-        );
+        $result = app(BorrowingAnalyticsService::class)->getMostRequestedResources($this->filter, 5);
 
         if ($result['empty']) {
             return [
@@ -83,7 +54,7 @@ class MostRequestedResourcesChart extends ChartWidget
                     'data' => [0],
                     'backgroundColor' => ['#9ca3af'],
                 ]],
-                'labels' => ['No hay datos disponibles para el filtro seleccionado'],
+                'labels' => ['No hay datos disponibles para el periodo seleccionado'],
             ];
         }
 
