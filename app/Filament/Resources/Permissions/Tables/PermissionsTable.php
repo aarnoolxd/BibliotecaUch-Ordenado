@@ -25,10 +25,13 @@ class PermissionsTable
                     ->badge(),
 
                 TextColumn::make('created_at')
-                    ->label('Creado')
+                    ->label('Fecha de Creacion')
+                    ->dateTime()
+                    ->sortable(),
+                TextColumn::make('updated_at')
+                    ->label('Fecha de Actualizacion')
                     ->dateTime()
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('module')
@@ -47,15 +50,15 @@ class PermissionsTable
                         $module = $data['value'] ?? null;
                         $allowedModules = ['Equipment', 'Borrowing', 'Profile', 'User', 'Role', 'Permission'];
 
-                        if (! is_string($module) || ! in_array($module, $allowedModules, true)) {
+                        if (!is_string($module) || !in_array($module, $allowedModules, true)) {
                             return $query;
                         }
 
-                        return $query->whereRaw("name LIKE ? ESCAPE '!'", ['%!_'.$module]);
+                        return $query->whereRaw("name LIKE ? ESCAPE '!'", ['%!_' . $module]);
                     }),
             ], layout: FiltersLayout::Modal)
             ->filtersTriggerAction(
-                fn (Action $action): Action => $action
+                fn(Action $action): Action => $action
                     ->slideOver()
                     ->modalCancelAction(false),
             );
