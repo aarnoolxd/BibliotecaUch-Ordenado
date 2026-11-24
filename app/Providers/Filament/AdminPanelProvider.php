@@ -39,6 +39,7 @@ class AdminPanelProvider extends PanelProvider
                 Css::make('filament-login', asset('/css/filament-login.css')),
                 Css::make('filament-profile', asset('/css/filament-profile.css')),
                 Css::make('filament-borrowing', asset('/css/filament-borrowing.css')),
+                Css::make('filament-tables', asset('/css/filament-tables.css')),
             ])
             ->brandName('UCH')
             ->brandLogo(fn () => Auth::check() ? asset('images/banner.svg') : asset('images/login-logo.svg'))

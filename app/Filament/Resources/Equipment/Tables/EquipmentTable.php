@@ -9,6 +9,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -125,6 +126,58 @@ class EquipmentTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
+                Action::make('discontinue')
+                    ->label('Descontinuar')
+                    ->icon(Heroicon::OutlinedArchiveBoxXMark)
+                    ->color('danger')
+                    ->visible(fn (Equipment $record): bool => $record->status !== Equipment::STATUS_DISCONTINUED)
+                    ->authorize('update')
+                    ->modalHeading('Descontinuar equipo por baja técnica')
+                    ->modalDescription('El equipo pasará al estado "Baja" y quedará inhabilitado para préstamos futuros.')
+                    ->modalSubmitActionLabel('Confirmar Descontinuación')
+                    ->schema([
+                        Textarea::make('decommission_reason')
+                            ->label('Motivo de la baja técnica')
+                            ->placeholder('Detalle la falla irreparable, obsolescencia o motivo de retiro...')
+                            ->helperText('Campo obligatorio para justificar el retiro técnico del recurso (5 a 500 caracteres).')
+                            ->required()
+                            ->trim()
+                            ->minLength(5)
+                            ->maxLength(500)
+                            ->rows(3)
+                            ->validationMessages([
+                                'required' => 'Debe indicar el motivo de la baja técnica.',
+                                'min' => 'El motivo de la baja técnica debe tener al menos 5 caracteres.',
+                                'max' => 'El motivo de la baja técnica no puede superar los 500 caracteres.',
+                            ]),
+                    ])
+                    ->action(function (Equipment $record, array $data): void {
+                        $result = $record->discontinue((string) ($data['decommission_reason'] ?? ''));
+
+                        match ($result) {
+                            Equipment::DISCONTINUE_ACTIVE_BORROWING => Notification::make()
+                                ->title('Operación no permitida')
+                                ->body('No es posible descontinuar el equipo porque mantiene un préstamo activo. Primero debe registrarse su devolución.')
+                                ->danger()
+                                ->persistent()
+                                ->send(),
+                            Equipment::DISCONTINUE_ALREADY_DISCONTINUED => Notification::make()
+                                ->title('El equipo ya se encuentra de baja')
+                                ->body("El equipo {$record->patrimonial_code} ya había sido dado de baja previamente.")
+                                ->warning()
+                                ->send(),
+                            Equipment::DISCONTINUE_SUCCESS => Notification::make()
+                                ->title('Equipo descontinuado exitosamente')
+                                ->body("El equipo {$record->patrimonial_code} pasó a estado Baja y quedó inhabilitado para préstamos futuros.")
+                                ->success()
+                                ->send(),
+                            default => Notification::make()
+                                ->title('Equipo no encontrado')
+                                ->body('El equipo ya no se encuentra registrado en el inventario.')
+                                ->danger()
+                                ->send(),
+                        };
+                    }),
                 DeleteAction::make()
                     ->before(function (DeleteAction $action, Equipment $record): void {
                         if ($record->hasActiveBorrowing()) {

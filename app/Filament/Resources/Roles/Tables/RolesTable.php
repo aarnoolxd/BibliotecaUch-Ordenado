@@ -18,6 +18,14 @@ class RolesTable
                 TextColumn::make('guard_name')
                     ->label('Grupo de Seguridad')
                     ->badge(),
+                TextColumn::make('created_at')
+                    ->label('Fecha de Creación')
+                    ->dateTime()
+                    ->sortable(),
+                TextColumn::make('updated_at')
+                    ->label('Fecha de Actualización')
+                    ->dateTime()
+                    ->sortable(),
             ])
             ->filters([
                 //
