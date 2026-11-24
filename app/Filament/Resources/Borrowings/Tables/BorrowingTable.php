@@ -217,7 +217,14 @@ class BorrowingTable
                                         ->directory('borrowings/incidents')
                                         ->preventFilePathTampering()
                                         ->saveUploadedFileUsing(function (FileUpload $component, TemporaryUploadedFile $file) use (&$storedPhotoPaths): ?string {
-                                            $path = $component->saveUploadedFile($file);
+                                            try {
+                                                $path = $component->saveUploadedFile($file);
+                                            } catch (Throwable $exception) {
+                                                self::cleanupUnreferencedPhotos($storedPhotoPaths);
+                                                $storedPhotoPaths = [];
+
+                                                throw $exception;
+                                            }
 
                                             if (is_string($path) && trim($path) !== '') {
                                                 $storedPhotoPaths[] = $path;
