@@ -1,0 +1,44 @@
+/* Cabecera de tablas con estilo institucional UCH */
+.fi-ta-table > thead,
+.fi-ta-table > thead > tr {
+    background-color: #0a2d5f !important;
+}
+
+.fi-ta-table > thead th,
+.fi-ta-table > thead .fi-ta-header-cell,
+.fi-ta-table > thead .fi-ta-selection-cell {
+    background-color: #0a2d5f !important;
+    border-bottom: 2px solid #061e40 !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+}
+
+.fi-ta-table > thead th,
+.fi-ta-table > thead th span,
+.fi-ta-table > thead .fi-ta-header-cell-label,
+.fi-ta-table > thead .fi-ta-header-cell-sort-btn,
+.fi-ta-table > thead .fi-ta-header-cell-tooltip {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.03em !important;
+}
+
+/* Iconos de ordenación en las cabeceras */
+.fi-ta-table > thead .fi-ta-header-cell svg,
+.fi-ta-table > thead .fi-ta-header-cell .fi-icon {
+    color: #cbd5e1 !important;
+}
+
+.fi-ta-table > thead .fi-ta-header-cell-sort-btn:hover,
+.fi-ta-table > thead .fi-ta-header-cell-sort-btn:hover span {
+    color: #f8fafc !important;
+}
+
+.fi-ta-table > thead .fi-ta-header-cell-sort-btn:hover svg {
+    color: #ffffff !important;
+}
+
+/* Checkbox en la cabecera */
+.fi-ta-table > thead .fi-ta-selection-cell input[type="checkbox"] {
+    border-color: #94a3b8 !important;
+}
