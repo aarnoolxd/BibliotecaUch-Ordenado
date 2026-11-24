@@ -155,7 +155,21 @@ class ProfilesTable
                     ->label('Historial Excel')
                     ->icon(Heroicon::OutlinedDocumentArrowDown)
                     ->color('success')
-                    ->action(fn (Profile $record, ExportHistoryExcelService $service) => $service->exportStudentHistory($record)),
+                    ->authorize(fn (Profile $record): bool => ($user = auth()->user()) !== null
+                        && $user->can('view', $record)
+                        && $user->can('ViewAny_Borrowing'))
+                    ->action(function (Profile $record, ExportHistoryExcelService $service) {
+                        $user = auth()->user();
+
+                        abort_unless(
+                            $user !== null
+                            && $user->can('view', $record)
+                            && $user->can('ViewAny_Borrowing'),
+                            403,
+                        );
+
+                        return $service->exportStudentHistory($record);
+                    }),
                 ProfileResource::profileDetailsAction(),
                 EditAction::make(),
                 DeleteAction::make()

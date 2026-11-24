@@ -138,7 +138,23 @@ class EquipmentTable
                         ->label('Historial de Uso Excel')
                         ->icon(Heroicon::OutlinedDocumentArrowDown)
                         ->color('success')
-                        ->action(fn (Equipment $record, ExportHistoryExcelService $service) => $service->exportEquipmentHistory($record)),
+                        ->authorize(fn (Equipment $record): bool => ($user = auth()->user()) !== null
+                            && $user->can('view', $record)
+                            && $user->can('ViewAny_Borrowing')
+                            && $user->can('View_Profile'))
+                        ->action(function (Equipment $record, ExportHistoryExcelService $service) {
+                            $user = auth()->user();
+
+                            abort_unless(
+                                $user !== null
+                                && $user->can('view', $record)
+                                && $user->can('ViewAny_Borrowing')
+                                && $user->can('View_Profile'),
+                                403,
+                            );
+
+                            return $service->exportEquipmentHistory($record);
+                        }),
                     EditAction::make(),
                     Action::make('discontinue')
                         ->label('Descontinuar')

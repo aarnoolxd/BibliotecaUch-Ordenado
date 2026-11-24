@@ -27,6 +27,9 @@ class ListProfiles extends ListRecords
                 ->label('Importar Excel')
                 ->icon(Heroicon::OutlinedArrowUpTray)
                 ->color('success')
+                ->authorize(fn (): bool => ($user = auth()->user()) !== null
+                    && $user->can('Create_Profile')
+                    && $user->can('Update_Profile'))
                 ->modalHeading('Importar Estudiantes desde Excel')
                 ->modalDescription('Suba un archivo Excel (.xlsx, .xls) con las columnas: Código de estudiante, Tipo de alumno, Ap. Paterno, Ap. Materno, Nombres, Especialidad, Modalidad, Turno y Ciclo.')
                 ->modalSubmitActionLabel('Iniciar importación')
@@ -41,17 +44,27 @@ class ListProfiles extends ListRecords
                         ])
                         ->disk('local')
                         ->directory('temp-excel-imports')
+                        ->preventFilePathTampering()
                         ->required()
                         ->storeFiles(),
                 ])
                 ->action(function (array $data, ProfileExcelImportService $importService): void {
+                    $user = auth()->user();
+
+                    abort_unless(
+                        $user !== null
+                        && $user->can('Create_Profile')
+                        && $user->can('Update_Profile'),
+                        403,
+                    );
+
                     $filePath = $data['excel_file'] ?? null;
 
                     if (blank($filePath)) {
                         Notification::make()
                             ->danger()
                             ->title('Archivo requerido')
-                            ->body('Debe seleccionar un archivo válido para importar.')
+                            ->body('Selecciona un archivo válido.')
                             ->send();
 
                         return;
@@ -62,7 +75,7 @@ class ListProfiles extends ListRecords
                     if ($result['errors'] !== [] && $result['imported'] === 0 && $result['updated'] === 0) {
                         Notification::make()
                             ->danger()
-                            ->title('Error en la importación')
+                            ->title('Error al importar')
                             ->body(implode(' ', array_slice($result['errors'], 0, 3)))
                             ->persistent()
                             ->send();
@@ -70,12 +83,23 @@ class ListProfiles extends ListRecords
                         return;
                     }
 
-                    $message = "Se crearon {$result['imported']} nuevo(s) estudiante(s) y se actualizaron {$result['updated']}.";
+                    $summary = "Creados: {$result['imported']}. Actualizados: {$result['updated']}.";
+
+                    if ($result['errors'] !== []) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Importación parcial')
+                            ->body($summary.' Errores: '.implode(' | ', array_slice($result['errors'], 0, 3)))
+                            ->persistent()
+                            ->send();
+
+                        return;
+                    }
 
                     Notification::make()
                         ->success()
-                        ->title('Importación finalizada con éxito')
-                        ->body($message)
+                        ->title('Importación completada')
+                        ->body($summary)
                         ->send();
                 }),
 
