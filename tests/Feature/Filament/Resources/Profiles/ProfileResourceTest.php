@@ -21,6 +21,8 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Columns\ImageColumn;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -658,6 +660,20 @@ class ProfileResourceTest extends TestCase
             ->assertHasNoFormErrors();
 
         $this->assertSame('71119999', $borrowing->fresh()->student_dni);
+
+        $levelBeforeSave = DB::transactionLevel();
+        $levelDuringUpdated = null;
+
+        Event::listen('eloquent.updated: '.Profile::class, function () use (&$levelDuringUpdated): void {
+            $levelDuringUpdated = DB::transactionLevel();
+        });
+
+        $profile->refresh();
+        $profile->dni = '71118888';
+        $profile->save();
+
+        $this->assertSame($levelBeforeSave + 1, $levelDuringUpdated);
+        $this->assertSame('71118888', $borrowing->fresh()->student_dni);
     }
 
     /**

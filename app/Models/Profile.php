@@ -130,6 +130,17 @@ class Profile extends Model
     }
 
     /**
+     * Ejecuta el guardado del perfil y la sincronización de DNI en sus préstamos
+     * dentro de una única transacción.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public function save(array $options = []): bool
+    {
+        return DB::transaction(fn (): bool => parent::save($options));
+    }
+
+    /**
      * Ejecuta el borrado del perfil dentro de una transacción con bloqueo de fila
      * para evitar eliminar un perfil que reciba un préstamo activo concurrentemente.
      */
