@@ -7,12 +7,17 @@ namespace App\Services;
 use App\Filament\Resources\Profiles\Schemas\ProfileForm;
 use App\Models\Profile;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Throwable;
 
 class ProfileExcelImportService
 {
     private const string IMPORT_DIRECTORY = 'temp-excel-imports';
+
+    private const int MAX_IMPORT_ROWS = 10000;
+
+    private const int MAX_IMPORT_COLUMNS = 50;
 
     /**
      * Procesa un archivo Excel (.xlsx / .xls / .csv) almacenado temporalmente
@@ -34,9 +39,39 @@ class ProfileExcelImportService
 
         try {
             try {
-                $spreadsheet = IOFactory::load($realPath);
+                $reader = IOFactory::createReaderForFile($realPath);
+                $reader->setReadDataOnly(true);
+                $spreadsheet = $reader->load($realPath);
                 $sheet = $spreadsheet->getActiveSheet();
-                $rows = $sheet->toArray();
+
+                $highestDataRow = $sheet->getHighestDataRow();
+
+                if ($highestDataRow > self::MAX_IMPORT_ROWS) {
+                    return [
+                        'imported' => 0,
+                        'updated' => 0,
+                        'errors' => ['El archivo supera el límite máximo permitido de '.self::MAX_IMPORT_ROWS.' filas.'],
+                    ];
+                }
+
+                $highestDataColumnIndex = Coordinate::columnIndexFromString($sheet->getHighestDataColumn());
+                $maxColumnLetter = Coordinate::stringFromColumnIndex(min($highestDataColumnIndex, self::MAX_IMPORT_COLUMNS));
+                $rows = [];
+
+                foreach ($sheet->getRowIterator(1, $highestDataRow) as $row) {
+                    $rowValues = [];
+                    $cellIterator = $row->getCellIterator('A', $maxColumnLetter);
+                    $cellIterator->setIterateOnlyExistingCells(true);
+
+                    foreach ($cellIterator as $columnLetter => $cell) {
+                        $columnIndex = Coordinate::columnIndexFromString($columnLetter) - 1;
+                        $rowValues[$columnIndex] = $cell->getValue();
+                    }
+
+                    if ($rowValues !== []) {
+                        $rows[$row->getRowIndex()] = $rowValues;
+                    }
+                }
             } catch (Throwable $e) {
                 return [
                     'imported' => 0,
@@ -54,22 +89,23 @@ class ProfileExcelImportService
             }
 
             // Buscar fila de encabezados
-            $headerIndex = null;
+            $headerRowNumber = null;
             $headers = [];
 
-            foreach ($rows as $index => $row) {
+            foreach ($rows as $rowNumber => $row) {
                 $rowUpper = array_map(fn ($cell) => mb_strtoupper(trim((string) $cell), 'UTF-8'), $row);
 
                 if (in_array('CÓDIGO DE ESTUDIANTE', $rowUpper, true) || in_array('CODIGO DE ESTUDIANTE', $rowUpper, true) || in_array('AP. PATERNO', $rowUpper, true) || in_array('NOMBRES', $rowUpper, true)) {
-                    $headerIndex = $index;
+                    $headerRowNumber = $rowNumber;
                     $headers = $rowUpper;
                     break;
                 }
             }
 
-            if ($headerIndex === null) {
-                $headerIndex = 0;
-                $headers = array_map(fn ($cell) => mb_strtoupper(trim((string) $cell), 'UTF-8'), $rows[0]);
+            if ($headerRowNumber === null) {
+                $firstRowNumber = array_key_first($rows);
+                $headerRowNumber = (int) $firstRowNumber;
+                $headers = array_map(fn ($cell) => mb_strtoupper(trim((string) $cell), 'UTF-8'), $rows[$headerRowNumber]);
             }
 
             $colMap = [
@@ -97,8 +133,10 @@ class ProfileExcelImportService
             $updated = 0;
             $errors = [];
 
-            for ($i = $headerIndex + 1; $i < count($rows); $i++) {
-                $row = $rows[$i];
+            foreach ($rows as $rowNumber => $row) {
+                if ($rowNumber <= $headerRowNumber) {
+                    continue;
+                }
 
                 $rawCode = trim((string) ($row[$colMap['code']] ?? ''));
 
@@ -107,7 +145,7 @@ class ProfileExcelImportService
                 }
 
                 if (mb_strlen($rawCode, 'UTF-8') > 50) {
-                    $errors[] = 'Fila '.($i + 1).': el código supera el máximo de 50 caracteres.';
+                    $errors[] = "Fila {$rowNumber}: el código supera el máximo de 50 caracteres.";
 
                     continue;
                 }
@@ -130,7 +168,7 @@ class ProfileExcelImportService
                 $userType = $this->normalizeUserType($rawUserType);
 
                 if (filled($rawUserType) && $userType === null) {
-                    $errors[] = 'Fila '.($i + 1)." (Código {$code}): tipo de usuario inválido ({$rawUserType}).";
+                    $errors[] = "Fila {$rowNumber} (Código {$code}): tipo de usuario inválido ({$rawUserType}).";
 
                     continue;
                 }
@@ -162,6 +200,12 @@ class ProfileExcelImportService
                         $profile->update($updatePayload);
                         $updated++;
                     } else {
+                        if ($firstName === '' || $lastName === '') {
+                            $errors[] = "Fila {$rowNumber} (Código {$code}): nombres y apellido paterno son obligatorios.";
+
+                            continue;
+                        }
+
                         $resolvedUserType = $userType ?? Profile::USER_TYPE_STUDENT;
 
                         $createPayload = ProfileForm::normalizeAcademicData([
@@ -181,7 +225,7 @@ class ProfileExcelImportService
                         $imported++;
                     }
                 } catch (Throwable $e) {
-                    $errors[] = 'Fila '.($i + 1)." (Código {$code}): ".$e->getMessage();
+                    $errors[] = "Fila {$rowNumber} (Código {$code}): ".$e->getMessage();
                 }
             }
 
