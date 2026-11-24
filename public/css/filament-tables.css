@@ -24,18 +24,30 @@
 }
 
 /* Iconos de ordenación en las cabeceras */
-.fi-ta-table > thead .fi-ta-header-cell svg,
-.fi-ta-table > thead .fi-ta-header-cell .fi-icon {
-    color: #cbd5e1 !important;
+.fi-ta-table > thead .fi-ta-header-cell:not(.fi-ta-header-cell-sorted) svg,
+.fi-ta-table > thead .fi-ta-header-cell:not(.fi-ta-header-cell-sorted) .fi-icon {
+    color: #94a3b8 !important;
 }
 
-.fi-ta-table > thead .fi-ta-header-cell-sort-btn:hover,
-.fi-ta-table > thead .fi-ta-header-cell-sort-btn:hover span {
+.fi-ta-table > thead .fi-ta-header-cell:not(.fi-ta-header-cell-sorted) .fi-ta-header-cell-sort-btn:hover,
+.fi-ta-table > thead .fi-ta-header-cell:not(.fi-ta-header-cell-sorted) .fi-ta-header-cell-sort-btn:hover span {
     color: #f8fafc !important;
 }
 
-.fi-ta-table > thead .fi-ta-header-cell-sort-btn:hover svg {
-    color: #ffffff !important;
+.fi-ta-table > thead .fi-ta-header-cell:not(.fi-ta-header-cell-sorted) .fi-ta-header-cell-sort-btn:hover svg,
+.fi-ta-table > thead .fi-ta-header-cell:not(.fi-ta-header-cell-sorted) .fi-ta-header-cell-sort-btn:hover .fi-icon {
+    color: #e2e8f0 !important;
+}
+
+/* Columna ordenada activamente */
+.fi-ta-table > thead .fi-ta-header-cell.fi-ta-header-cell-sorted svg,
+.fi-ta-table > thead .fi-ta-header-cell.fi-ta-header-cell-sorted .fi-icon {
+    color: #fbbf24 !important;
+}
+
+.fi-ta-table > thead .fi-ta-header-cell.fi-ta-header-cell-sorted .fi-ta-header-cell-sort-btn:hover svg,
+.fi-ta-table > thead .fi-ta-header-cell.fi-ta-header-cell-sorted .fi-ta-header-cell-sort-btn:hover .fi-icon {
+    color: #fcd34d !important;
 }
 
 /* Checkbox en la cabecera */
