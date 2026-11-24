@@ -172,10 +172,11 @@ class BorrowingTable
                         ->color('success')
                         ->visible(fn (Borrowing $record): bool => in_array($record->status, Borrowing::ACTIVE_STATUSES, true))
                         ->authorize('registerReturn')
-                        ->modalHeading('Registrar devolución del préstamo')
-                        ->modalDescription('Indique si alguno de los dispositivos entregados presenta daños.')
+                        ->modalHeading('Registrar devolución')
+                        ->modalDescription('Indica si algún equipo presenta daños.')
                         ->modalWidth(Width::ThreeExtraLarge)
-                        ->modalSubmitActionLabel('Confirmar Devolución')
+                        ->modalSubmitActionLabel('Confirmar')
+                        ->modalCancelActionLabel('Cancelar')
                         ->fillForm(fn (Borrowing $record): array => [
                             'items' => self::buildReturnItems($record),
                         ])
@@ -265,13 +266,13 @@ class BorrowingTable
                                     );
 
                                 $body = match (true) {
-                                    array_key_exists('borrowing', $errors) => (string) ($errors['borrowing'][0] ?? 'Los equipos del préstamo cambiaron. Reabra la ficha y revise los equipos actuales.'),
-                                    $hasEquipmentMismatch => 'Los equipos del préstamo cambiaron mientras el formulario estaba abierto. Reabra la ficha para revisar los equipos actuales y vuelva a intentarlo.',
-                                    default => (string) (collect($errors)->flatten()->first() ?? 'No se pudo validar la devolución. Revise los datos e inténtelo nuevamente.'),
+                                    array_key_exists('borrowing', $errors) => (string) ($errors['borrowing'][0] ?? 'Los equipos cambiaron. Reabre la ficha.'),
+                                    $hasEquipmentMismatch => 'Los equipos cambiaron. Reabre la ficha e intenta otra vez.',
+                                    default => (string) (collect($errors)->flatten()->first() ?? 'Revisa los datos e intenta otra vez.'),
                                 };
 
                                 Notification::make()
-                                    ->title('No se pudo registrar la devolución')
+                                    ->title('No se pudo devolver')
                                     ->body($body)
                                     ->danger()
                                     ->persistent()
@@ -289,11 +290,11 @@ class BorrowingTable
                             $evaluatedCount = count($data['items'] ?? []);
 
                             $body = match (true) {
-                                $result['maintenance_count'] > 0 && $result['released_count'] > 0 => "Devolución registrada. {$result['released_count']} recurso(s) volvieron a Disponible y {$result['maintenance_count']} pasaron a Mantenimiento por daños reportados.",
-                                $result['maintenance_count'] > 0 => "Devolución registrada. {$result['maintenance_count']} recurso(s) pasaron a Mantenimiento debido a los daños reportados.",
-                                $result['released_count'] > 0 && $result['released_count'] === $evaluatedCount => 'Devolución procesada con éxito. Todos los recursos volvieron a estado Disponible.',
-                                $result['released_count'] > 0 => "Devolución procesada con éxito. {$result['released_count']} recurso(s) volvieron a estado Disponible.",
-                                default => 'Devolución procesada con éxito. Los recursos conservaron su estado actual.',
+                                $result['maintenance_count'] > 0 && $result['released_count'] > 0 => "{$result['released_count']} disponible(s) y {$result['maintenance_count']} a mantenimiento.",
+                                $result['maintenance_count'] > 0 => "{$result['maintenance_count']} equipo(s) pasaron a mantenimiento.",
+                                $result['released_count'] > 0 && $result['released_count'] === $evaluatedCount => 'Todos los equipos volvieron a Disponible.',
+                                $result['released_count'] > 0 => "{$result['released_count']} equipo(s) volvieron a Disponible.",
+                                default => 'Estado actualizado.',
                             };
 
                             Notification::make()
