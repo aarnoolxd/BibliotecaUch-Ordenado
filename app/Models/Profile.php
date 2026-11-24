@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 #[Fillable([
     'user_id',
@@ -84,6 +88,67 @@ class Profile extends Model
         'photo',
     ];
 
+    protected static function booted(): void
+    {
+        static::deleting(function (Profile $profile): ?bool {
+            $lockedProfile = self::query()
+                ->lockForUpdate()
+                ->find($profile->getKey());
+
+            if ($lockedProfile === null || $lockedProfile->hasActiveBorrowing()) {
+                return false;
+            }
+
+            return null;
+        });
+
+        static::updated(function (Profile $profile): void {
+            if ($profile->wasChanged('dni')) {
+                $profile->borrowings()->update(['student_dni' => $profile->dni]);
+            }
+
+            if ($profile->wasChanged('photo')) {
+                $previousPhoto = $profile->getOriginal('photo');
+
+                if (is_string($previousPhoto) && trim($previousPhoto) !== '') {
+                    DB::afterCommit(static function () use ($previousPhoto): void {
+                        self::deletePhotoIfUnreferenced($previousPhoto);
+                    });
+                }
+            }
+        });
+
+        static::deleted(function (Profile $profile): void {
+            $photo = $profile->photo;
+
+            if (is_string($photo) && trim($photo) !== '') {
+                DB::afterCommit(static function () use ($photo): void {
+                    self::deletePhotoIfUnreferenced($photo);
+                });
+            }
+        });
+    }
+
+    /**
+     * Ejecuta el guardado del perfil y la sincronización de DNI en sus préstamos
+     * dentro de una única transacción.
+     *
+     * @param  array<string, mixed>  $options
+     */
+    public function save(array $options = []): bool
+    {
+        return DB::transaction(fn (): bool => parent::save($options));
+    }
+
+    /**
+     * Ejecuta el borrado del perfil dentro de una transacción con bloqueo de fila
+     * para evitar eliminar un perfil que reciba un préstamo activo concurrentemente.
+     */
+    public function delete(): ?bool
+    {
+        return DB::transaction(fn (): ?bool => parent::delete());
+    }
+
     /**
      * @return array<string, string>
      */
@@ -103,6 +168,24 @@ class Profile extends Model
     }
 
     /**
+     * Préstamos asociados a este perfil.
+     */
+    public function borrowings(): HasMany
+    {
+        return $this->hasMany(Borrowing::class, 'profile_id');
+    }
+
+    /**
+     * Determina si el perfil tiene al menos un préstamo activo (En curso o Vencido).
+     */
+    public function hasActiveBorrowing(): bool
+    {
+        return $this->borrowings()
+            ->whereIn('status', Borrowing::ACTIVE_STATUSES)
+            ->exists();
+    }
+
+    /**
      * Nombre completo consolidado del perfil.
      */
     public function getFullNameAttribute(): string
@@ -115,5 +198,27 @@ class Profile extends Model
             ->map(fn (?string $part): string => trim((string) $part))
             ->filter(fn (string $part): bool => $part !== '')
             ->implode(' ');
+    }
+
+    /**
+     * Elimina una fotografía de perfil del disco configurado solo si ningún otro
+     * perfil registrado la referencia.
+     */
+    private static function deletePhotoIfUnreferenced(string $photoPath): void
+    {
+        try {
+            $isStillReferenced = self::query()
+                ->where('photo', $photoPath)
+                ->exists();
+
+            if ($isStillReferenced) {
+                return;
+            }
+
+            $disk = (string) config('filament.default_filesystem_disk', 'local');
+            Storage::disk($disk)->delete($photoPath);
+        } catch (Throwable) {
+            // Conserva el archivo si no es posible verificar o acceder al almacenamiento.
+        }
     }
 }

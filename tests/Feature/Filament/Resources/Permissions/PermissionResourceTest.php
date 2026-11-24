@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Filament\Resources\Permissions;
 
+use App\Filament\Resources\Permissions\Pages\ListPermissions;
 use App\Filament\Resources\Permissions\PermissionResource;
 use App\Models\Permission;
 use App\Models\Role;
@@ -9,6 +10,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -35,6 +37,26 @@ class PermissionResourceTest extends TestCase
         $this->get(PermissionResource::getUrl('index'))
             ->assertOk()
             ->assertSeeText($permission->name);
+    }
+
+    /**
+     * La tabla de permisos permite filtrar por módulo del sistema desde el panel slide-over.
+     */
+    public function test_permissions_table_can_filter_by_module(): void
+    {
+        $equipmentPerm = Permission::findOrCreate('ViewAny_Equipment', 'web');
+        $borrowingPerm = Permission::findOrCreate('Create_Borrowing', 'web');
+        $userPerm = Permission::findOrCreate('Update_User', 'web');
+
+        $this->signInWithRole(Role::SUPER_ADMIN);
+
+        Livewire::test(ListPermissions::class)
+            ->filterTable('module', 'Equipment')
+            ->assertCanSeeTableRecords([$equipmentPerm])
+            ->assertCanNotSeeTableRecords([$borrowingPerm, $userPerm])
+            ->filterTable('module', 'Borrowing')
+            ->assertCanSeeTableRecords([$borrowingPerm])
+            ->assertCanNotSeeTableRecords([$equipmentPerm, $userPerm]);
     }
 
     /**

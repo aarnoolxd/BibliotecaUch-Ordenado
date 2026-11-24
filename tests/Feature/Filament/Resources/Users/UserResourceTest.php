@@ -6,7 +6,9 @@ use App\Filament\Resources\Users\Pages\CreateUser;
 use App\Filament\Resources\Users\Pages\EditUser;
 use App\Filament\Resources\Users\Pages\ListUsers;
 use App\Filament\Resources\Users\UserResource;
+use App\Models\Borrowing;
 use App\Models\Permission;
+use App\Models\Profile;
 use App\Models\Role;
 use App\Models\User;
 use Filament\Actions\DeleteAction;
@@ -152,7 +154,8 @@ class UserResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified();
+            ->assertNotified('Cuenta actualizada correctamente')
+            ->assertRedirect(UserResource::getUrl('index'));
 
         $target->refresh();
 
@@ -183,9 +186,38 @@ class UserResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified();
+            ->assertNotified('Cuenta actualizada correctamente')
+            ->assertRedirect(UserResource::getUrl('index'));
 
         $this->assertTrue(Hash::check('NuevaClave2@', $target->fresh()->password));
+    }
+
+    /**
+     * EditUser::getRedirectUrl solo redirige al listado cuando el usuario cuenta con ViewAny_User;
+     * si únicamente cuenta con Update_User (sin permiso de listado), conserva la página actual
+     * para evitar una redirección hacia HTTP 403.
+     */
+    public function test_edit_user_redirect_url_targets_index_only_when_user_can_view_any(): void
+    {
+        $coordinadorRole = Role::findOrCreate('coordinador', 'web');
+        $target = User::factory()->create();
+        $target->assignRole($coordinadorRole);
+
+        $page = new class extends EditUser
+        {
+            public function resolveRedirectUrl(User $record): ?string
+            {
+                $this->record = $record;
+
+                return $this->getRedirectUrl();
+            }
+        };
+
+        $this->signInWithPermissions('Update_User');
+        $this->assertNull($page->resolveRedirectUrl($target));
+
+        $this->signInWithPermissions('ViewAny_User', 'Update_User');
+        $this->assertSame(UserResource::getUrl('index'), $page->resolveRedirectUrl($target));
     }
 
     /**
@@ -260,6 +292,69 @@ class UserResourceTest extends TestCase
             ->assertActionHidden($deleteAction);
 
         $this->assertModelExists($superAdminTarget);
+        $this->assertFalse($superAdminTarget->delete());
+        $this->assertTrue($superAdminTarget->fresh()->hasRole(Role::SUPER_ADMIN));
+    }
+
+    /**
+     * No se permite eliminar una cuenta de usuario (ni desde la tabla ni a nivel de modelo)
+     * si posee préstamos activos registrados o vinculados a su perfil.
+     */
+    public function test_user_with_active_borrowings_cannot_be_deleted_from_table_or_model(): void
+    {
+        $operatorWithActiveBorrowing = User::factory()->create();
+        Borrowing::factory()->for($operatorWithActiveBorrowing, 'registeredBy')->create([
+            'status' => Borrowing::STATUS_IN_PROGRESS,
+        ]);
+
+        $studentUserWithActiveBorrowing = User::factory()->create();
+        $studentProfile = Profile::factory()->for($studentUserWithActiveBorrowing)->create();
+        Borrowing::factory()->for($studentProfile)->overdue()->create();
+
+        $this->signInWithPermissions('ViewAny_User', 'Delete_User');
+
+        Livewire::test(ListUsers::class)
+            ->callAction(TestAction::make(DeleteAction::class)->table($operatorWithActiveBorrowing))
+            ->assertNotified('No se puede eliminar la cuenta');
+
+        Livewire::test(ListUsers::class)
+            ->callAction(TestAction::make(DeleteAction::class)->table($studentUserWithActiveBorrowing))
+            ->assertNotified('No se puede eliminar la cuenta');
+
+        $this->assertFalse($operatorWithActiveBorrowing->delete());
+        $this->assertFalse($studentUserWithActiveBorrowing->delete());
+        $this->assertModelExists($operatorWithActiveBorrowing);
+        $this->assertModelExists($studentUserWithActiveBorrowing);
+    }
+
+    /**
+     * La tabla de usuarios permite filtrar por rol asignado y por vinculación de perfil.
+     */
+    public function test_users_table_can_filter_by_role_and_profile_link(): void
+    {
+        $coordinadorRole = Role::findOrCreate('coordinador', 'web');
+        $adminRole = Role::findOrCreate('admin', 'web');
+
+        $coordinatorWithProfile = User::factory()->create();
+        $coordinatorWithProfile->assignRole($coordinadorRole);
+        Profile::factory()->for($coordinatorWithProfile)->create();
+
+        $adminWithoutProfile = User::factory()->create();
+        $adminWithoutProfile->assignRole($adminRole);
+
+        $this->signInWithPermissions('ViewAny_User');
+
+        Livewire::test(ListUsers::class)
+            ->filterTable('roles', $coordinadorRole->getKey())
+            ->assertCanSeeTableRecords([$coordinatorWithProfile])
+            ->assertCanNotSeeTableRecords([$adminWithoutProfile])
+            ->removeTableFilters()
+            ->filterTable('has_profile', true)
+            ->assertCanSeeTableRecords([$coordinatorWithProfile])
+            ->assertCanNotSeeTableRecords([$adminWithoutProfile])
+            ->filterTable('has_profile', false)
+            ->assertCanSeeTableRecords([$adminWithoutProfile])
+            ->assertCanNotSeeTableRecords([$coordinatorWithProfile]);
     }
 
     /**

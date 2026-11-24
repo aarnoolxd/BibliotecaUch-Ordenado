@@ -216,15 +216,25 @@ class EquipmentResourceTest extends TestCase
     }
 
     /**
-     * La tabla de equipos simplificada no expone filtros desplegables de categoría ni estado.
+     * La tabla de equipos permite filtrar por categoría y estado operativo desde el panel
+     * de filtros desplegable (slide-over).
      */
-    public function test_equipment_table_does_not_expose_type_or_status_filters(): void
+    public function test_equipment_table_can_filter_by_type_and_status(): void
     {
+        $availableLaptop = Equipment::factory()->ofType('Laptop')->withStatus('Disponible')->create();
+        $maintenanceComputer = Equipment::factory()->ofType('Computadora')->withStatus('Mantenimiento')->create();
+        $borrowedMouse = Equipment::factory()->ofType('Periférico')->withStatus('Prestado')->create();
         $this->signInWithPermissions('ViewAny_Equipment');
 
-        $table = Livewire::test(ListEquipments::class)->instance()->getTable();
-
-        $this->assertSame([], $table->getFilters());
+        Livewire::test(ListEquipments::class)
+            ->loadTable()
+            ->filterTable('type', 'Laptop')
+            ->assertCanSeeTableRecords([$availableLaptop])
+            ->assertCanNotSeeTableRecords([$maintenanceComputer, $borrowedMouse])
+            ->removeTableFilters()
+            ->filterTable('status', 'Mantenimiento')
+            ->assertCanSeeTableRecords([$maintenanceComputer])
+            ->assertCanNotSeeTableRecords([$availableLaptop, $borrowedMouse]);
     }
 
     /**

@@ -10,10 +10,12 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Traits\HasRoles;
 use Throwable;
@@ -26,11 +28,57 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     use HasFactory, HasRoles, Notifiable;
 
     /**
+     * Ejecuta el borrado del usuario dentro de una transacción con bloqueo de fila
+     * antes de disparar los eventos Eloquent (como el detach de roles de Spatie),
+     * impidiendo eliminar cuentas super-admin o cuentas con préstamos activos.
+     */
+    public function delete(): ?bool
+    {
+        return DB::transaction(function (): ?bool {
+            $lockedUser = self::query()
+                ->lockForUpdate()
+                ->find($this->getKey());
+
+            if (
+                $lockedUser === null
+                || $lockedUser->hasRole(Role::SUPER_ADMIN)
+                || $lockedUser->hasActiveBorrowing()
+            ) {
+                return false;
+            }
+
+            return parent::delete();
+        });
+    }
+
+    /**
      * Relación uno a uno con el perfil de metadatos personales.
      */
     public function profile(): HasOne
     {
         return $this->hasOne(Profile::class);
+    }
+
+    /**
+     * Préstamos registrados por esta cuenta de operador.
+     */
+    public function registeredBorrowings(): HasMany
+    {
+        return $this->hasMany(Borrowing::class, 'registered_by');
+    }
+
+    /**
+     * Comprueba si la cuenta tiene préstamos activos registrados o pendientes en su perfil vinculado.
+     */
+    public function hasActiveBorrowing(): bool
+    {
+        if ($this->registeredBorrowings()->whereIn('status', Borrowing::ACTIVE_STATUSES)->exists()) {
+            return true;
+        }
+
+        return $this->profile()
+            ->whereHas('borrowings', fn ($query) => $query->whereIn('status', Borrowing::ACTIVE_STATUSES))
+            ->exists();
     }
 
     /**
