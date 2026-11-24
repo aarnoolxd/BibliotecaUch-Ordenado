@@ -3,12 +3,19 @@
 namespace App\Filament\Resources\Profiles\Tables;
 
 use App\Filament\Resources\Profiles\ProfileResource;
+use App\Models\Profile;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class ProfilesTable
 {
@@ -90,12 +97,55 @@ class ProfilesTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
-            ])
+                SelectFilter::make('user_type')
+                    ->label('Tipo de usuario')
+                    ->placeholder('Todos los tipos')
+                    ->options(Profile::USER_TYPES)
+                    ->native(false),
+
+                SelectFilter::make('program')
+                    ->label('Programa académico')
+                    ->placeholder('Todos los programas')
+                    ->options(Profile::PROGRAMS)
+                    ->native(false),
+
+                SelectFilter::make('cycle')
+                    ->label('Ciclo académico')
+                    ->placeholder('Todos los ciclos')
+                    ->options(Profile::CYCLES)
+                    ->native(false),
+
+                TernaryFilter::make('has_user')
+                    ->label('Cuenta vinculada')
+                    ->placeholder('Todos los perfiles')
+                    ->trueLabel('Con cuenta vinculada')
+                    ->falseLabel('Sin cuenta vinculada')
+                    ->native(false)
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->whereNotNull('user_id'),
+                        false: fn (Builder $query): Builder => $query->whereNull('user_id'),
+                    ),
+            ], layout: FiltersLayout::Modal)
+            ->filtersTriggerAction(
+                fn (Action $action): Action => $action
+                    ->slideOver()
+                    ->modalCancelAction(false),
+            )
             ->recordActions([
                 ProfileResource::profileDetailsAction(),
                 EditAction::make(),
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->before(function (DeleteAction $action, Profile $record): void {
+                        if ($record->hasActiveBorrowing()) {
+                            Notification::make()
+                                ->title('No se puede eliminar el perfil')
+                                ->body('Este perfil mantiene préstamos activos (en curso o vencidos). Registre primero su devolución.')
+                                ->danger()
+                                ->send();
+
+                            $action->cancel();
+                        }
+                    }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
