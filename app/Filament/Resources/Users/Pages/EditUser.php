@@ -18,8 +18,14 @@ class EditUser extends EditRecord
             ->body('Los datos y roles de la cuenta se guardaron con éxito.');
     }
 
-    protected function getRedirectUrl(): string
+    protected function getRedirectUrl(): ?string
     {
-        return $this->getResource()::getUrl('index');
+        $resource = $this->getResource();
+
+        if ($resource::canViewAny()) {
+            return $resource::getUrl('index');
+        }
+
+        return parent::getRedirectUrl();
     }
 }

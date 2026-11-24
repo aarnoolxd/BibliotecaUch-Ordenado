@@ -193,6 +193,34 @@ class UserResourceTest extends TestCase
     }
 
     /**
+     * EditUser::getRedirectUrl solo redirige al listado cuando el usuario cuenta con ViewAny_User;
+     * si únicamente cuenta con Update_User (sin permiso de listado), conserva la página actual
+     * para evitar una redirección hacia HTTP 403.
+     */
+    public function test_edit_user_redirect_url_targets_index_only_when_user_can_view_any(): void
+    {
+        $coordinadorRole = Role::findOrCreate('coordinador', 'web');
+        $target = User::factory()->create();
+        $target->assignRole($coordinadorRole);
+
+        $page = new class extends EditUser
+        {
+            public function resolveRedirectUrl(User $record): ?string
+            {
+                $this->record = $record;
+
+                return $this->getRedirectUrl();
+            }
+        };
+
+        $this->signInWithPermissions('Update_User');
+        $this->assertNull($page->resolveRedirectUrl($target));
+
+        $this->signInWithPermissions('ViewAny_User', 'Update_User');
+        $this->assertSame(UserResource::getUrl('index'), $page->resolveRedirectUrl($target));
+    }
+
+    /**
      * Un usuario con Delete_User puede eliminar otra cuenta ordinaria desde la tabla.
      */
     public function test_a_user_with_delete_permission_can_delete_another_user_from_the_table(): void
