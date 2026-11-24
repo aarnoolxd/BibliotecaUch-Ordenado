@@ -47,21 +47,17 @@ class ProfileForm
                         'unique' => 'La cuenta de usuario seleccionada ya tiene un perfil vinculado.',
                     ]),
 
-                TextInput::make('dni')
-                    ->label('DNI')
-                    ->placeholder('Ej: 71234567')
-                    ->helperText('Documento Nacional de Identidad de 8 dígitos numéricos.')
+                TextInput::make('student_code')
+                    ->label('Código de estudiante')
+                    ->placeholder('Ej: 25107002')
+                    ->helperText('Código o identificador único del estudiante.')
                     ->required()
-                    ->minLength(8)
-                    ->maxLength(8)
-                    ->regex('/^[0-9]{8}$/')
+                    ->maxLength(50)
                     ->unique(ignoreRecord: true)
                     ->validationMessages([
-                        'required' => 'El número de DNI es obligatorio.',
-                        'regex' => 'El DNI debe contener exactamente 8 dígitos numéricos.',
-                        'min' => 'El DNI debe tener exactamente 8 dígitos.',
-                        'max' => 'El DNI no puede superar los 8 dígitos.',
-                        'unique' => 'Este número de DNI ya se encuentra registrado.',
+                        'required' => 'El código de estudiante es obligatorio.',
+                        'max' => 'El código no puede superar los 50 caracteres.',
+                        'unique' => 'Este número de código ya se encuentra registrado.',
                     ]),
 
                 TextInput::make('first_name')
@@ -148,16 +144,31 @@ class ProfileForm
                         'in' => 'Seleccione un ciclo de la lista.',
                     ]),
 
+                Select::make('modality')
+                    ->label('Modalidad')
+                    ->placeholder('Seleccione una modalidad')
+                    ->options(Profile::MODALITIES)
+                    ->native(false)
+                    ->nullable()
+                    ->visible(fn (Get $get): bool => $get('user_type') === Profile::USER_TYPE_STUDENT),
+
+                Select::make('shift')
+                    ->label('Turno')
+                    ->placeholder('Seleccione un turno')
+                    ->options(Profile::SHIFTS)
+                    ->native(false)
+                    ->nullable()
+                    ->visible(fn (Get $get): bool => $get('user_type') === Profile::USER_TYPE_STUDENT),
+
                 TextInput::make('phone')
                     ->label('Número de celular')
                     ->placeholder('Ej: 987654321')
                     ->helperText('Número de celular donde se puede contactar a la persona. Por ejemplo: 987654321.')
                     ->tel()
-                    ->required()
+                    ->nullable()
                     ->regex('/^(?:\+51)?9[0-9]{8}$/')
                     ->maxLength(20)
                     ->validationMessages([
-                        'required' => 'El número de celular es obligatorio.',
                         'regex' => 'Ingrese un celular válido de 9 dígitos que empiece con 9, con prefijo +51 opcional.',
                         'max' => 'El número telefónico no puede superar los 20 caracteres.',
                     ]),

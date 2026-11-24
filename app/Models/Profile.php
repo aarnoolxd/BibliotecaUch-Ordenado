@@ -13,13 +13,16 @@ use Throwable;
 
 #[Fillable([
     'user_id',
-    'dni',
+    'student_code',
     'first_name',
     'last_name',
     'maternal_last_name',
     'program',
     'cycle',
     'user_type',
+    'student_type',
+    'modality',
+    'shift',
     'phone',
     'address',
     'photo',
@@ -33,6 +36,28 @@ class Profile extends Model
     public const USER_TYPE_TEACHER = 'Docente';
 
     public const USER_TYPE_ADMINISTRATIVE = 'Administrativo';
+
+    /**
+     * Modalidades de estudio.
+     *
+     * @var array<string, string>
+     */
+    public const MODALITIES = [
+        'PRESENCIAL' => 'Presencial',
+        'SEMIPRESENCIAL' => 'Semipresencial',
+        'A DISTANCIA' => 'A Distancia',
+    ];
+
+    /**
+     * Turnos académicos.
+     *
+     * @var array<string, string>
+     */
+    public const SHIFTS = [
+        'MAÑANA' => 'Mañana',
+        'TARDE' => 'Tarde',
+        'NOCHE' => 'Noche',
+    ];
 
     /**
      * Tipos de usuario permitidos para un perfil institucional.
@@ -76,13 +101,16 @@ class Profile extends Model
 
     protected $fillable = [
         'user_id',
-        'dni',
+        'student_code',
         'first_name',
         'last_name',
         'maternal_last_name',
         'program',
         'cycle',
         'user_type',
+        'student_type',
+        'modality',
+        'shift',
         'phone',
         'address',
         'photo',
@@ -103,8 +131,8 @@ class Profile extends Model
         });
 
         static::updated(function (Profile $profile): void {
-            if ($profile->wasChanged('dni')) {
-                $profile->borrowings()->update(['student_dni' => $profile->dni]);
+            if ($profile->wasChanged('student_code')) {
+                $profile->borrowings()->update(['student_code' => $profile->student_code]);
             }
 
             if ($profile->wasChanged('photo')) {

@@ -30,22 +30,22 @@ class CreateBorrowing extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $profile = Profile::query()->where('dni', trim((string) ($data['student_dni'] ?? '')))->first();
+        $profile = Profile::query()->where('student_code', trim((string) ($data['student_code'] ?? '')))->first();
 
         if ($profile === null) {
             Notification::make()
                 ->danger()
-                ->title('DNI no encontrado')
+                ->title('Código no encontrado')
                 ->body('Registra primero el perfil del estudiante.')
                 ->persistent()
                 ->send();
 
             throw ValidationException::withMessages([
-                'data.student_dni' => 'El DNI ingresado no existe en el sistema.',
+                'data.student_code' => 'El código de estudiante ingresado no existe en el sistema.',
             ]);
         }
 
-        $data['student_dni'] = $profile->dni;
+        $data['student_code'] = $profile->student_code;
         $data['profile_id'] = $profile->id;
 
         $primaryEquipmentId = filled($data['equipment_id'] ?? null) ? (int) $data['equipment_id'] : null;

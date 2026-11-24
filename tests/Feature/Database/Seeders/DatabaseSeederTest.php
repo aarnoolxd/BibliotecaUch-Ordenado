@@ -34,14 +34,14 @@ class DatabaseSeederTest extends TestCase
         $this->assertSame(1, EquipmentIncident::query()->count());
 
         // Verifica perfiles con apellido materno, tipo de usuario y datos académicos solo para estudiantes
-        $studentProfile = Profile::query()->where('dni', '70000005')->firstOrFail();
+        $studentProfile = Profile::query()->where('student_code', '70000005')->firstOrFail();
         $this->assertSame('Salazar', $studentProfile->last_name);
         $this->assertSame('Huaman', $studentProfile->maternal_last_name);
         $this->assertSame(Profile::USER_TYPE_STUDENT, $studentProfile->user_type);
         $this->assertNotNull($studentProfile->program);
         $this->assertNotNull($studentProfile->cycle);
 
-        $teacherProfile = Profile::query()->where('dni', '70000008')->firstOrFail();
+        $teacherProfile = Profile::query()->where('student_code', '70000008')->firstOrFail();
         $this->assertSame(Profile::USER_TYPE_TEACHER, $teacherProfile->user_type);
         $this->assertNull($teacherProfile->program);
         $this->assertNull($teacherProfile->cycle);

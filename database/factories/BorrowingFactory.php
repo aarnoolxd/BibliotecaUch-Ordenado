@@ -24,7 +24,7 @@ class BorrowingFactory extends Factory
         return [
             'equipment_id' => Equipment::factory()->ofType('Computadora'),
             'profile_id' => Profile::factory(),
-            'student_dni' => fn (array $attributes): string => Profile::query()->find($attributes['profile_id'])?->dni
+            'student_code' => fn (array $attributes): string => Profile::query()->find($attributes['profile_id'])?->student_code
                 ?? fake()->numerify('########'),
             'borrowing_date' => now(),
             'due_date' => function (array $attributes) {

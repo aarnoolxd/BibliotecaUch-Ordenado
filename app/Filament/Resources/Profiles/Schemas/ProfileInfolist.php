@@ -91,11 +91,11 @@ class ProfileInfolist
                             ->state('DATOS PERSONALES Y CONTACTO')
                             ->extraAttributes(['class' => 'profile-sheet-eyebrow'])
                             ->columnSpanFull(),
-                        TextEntry::make('dni')
-                            ->label('DNI')
+                        TextEntry::make('student_code')
+                            ->label('Código de estudiante')
                             ->icon(Heroicon::OutlinedIdentification)
                             ->copyable()
-                            ->copyMessage('DNI copiado'),
+                            ->copyMessage('Código copiado'),
                         TextEntry::make('phone')
                             ->label('Número de celular')
                             ->icon(Heroicon::OutlinedPhone)

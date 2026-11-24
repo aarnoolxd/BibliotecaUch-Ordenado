@@ -127,11 +127,11 @@ class BorrowingInfolist
                             ->icon(Heroicon::OutlinedCheckCircle)
                             ->dateTime('d/m/Y H:i')
                             ->placeholder('Pendiente de devolución'),
-                        TextEntry::make('student_dni')
-                            ->label('DNI del solicitante')
+                        TextEntry::make('student_code')
+                            ->label('Código del solicitante')
                             ->icon(Heroicon::OutlinedIdentification)
                             ->copyable()
-                            ->copyMessage('DNI copiado'),
+                            ->copyMessage('Código copiado'),
                         TextEntry::make('profile.phone')
                             ->label('Celular de contacto')
                             ->icon(Heroicon::OutlinedPhone)

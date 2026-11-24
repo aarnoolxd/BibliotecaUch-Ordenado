@@ -16,6 +16,9 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Columns\Column;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class ProfilesTable
 {
@@ -28,8 +31,8 @@ class ProfilesTable
                     ->circular()
                     ->defaultImageUrl(fn (): string => asset('images/default-avatar.svg')),
 
-                TextColumn::make('dni')
-                    ->label('DNI')
+                TextColumn::make('student_code')
+                    ->label('Código')
                     ->searchable()
                     ->sortable(),
 
@@ -52,6 +55,20 @@ class ProfilesTable
                 TextColumn::make('program')
                     ->label('Programa')
                     ->placeholder('Sin programa')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('modality')
+                    ->label('Modalidad')
+                    ->placeholder('Sin modalidad')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('shift')
+                    ->label('Turno')
+                    ->placeholder('Sin turno')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
@@ -154,7 +171,25 @@ class ProfilesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    // Add bulk actions here if needed
+                    ExportBulkAction::make()
+                        ->label('Exportar a Excel')
+                        ->exports([
+                            ExcelExport::make('seleccionados')
+                                ->withFilename(fn () => 'estudiantes-seleccionados-'.date('Y-m-d'))
+                                ->withColumns([
+                                    Column::make('student_code')->heading('Código de estudiante'),
+                                    Column::make('student_type')->heading('Tipo de alumno'),
+                                    Column::make('last_name')->heading('Ap. Paterno'),
+                                    Column::make('maternal_last_name')->heading('Ap. Materno'),
+                                    Column::make('first_name')->heading('Nombres'),
+                                    Column::make('program')->heading('Especialidad'),
+                                    Column::make('modality')->heading('Modalidad'),
+                                    Column::make('shift')->heading('Turno'),
+                                    Column::make('cycle')->heading('Ciclo'),
+                                    Column::make('user_type')->heading('Tipo de usuario'),
+                                    Column::make('phone')->heading('Celular'),
+                                ]),
+                        ]),
                 ]),
             ]);
     }

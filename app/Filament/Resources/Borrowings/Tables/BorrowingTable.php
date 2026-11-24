@@ -42,12 +42,12 @@ class BorrowingTable
 
         return $table
             ->columns([
-                TextColumn::make('student_dni')
-                    ->label('DNI Estudiante')
+                TextColumn::make('student_code')
+                    ->label('Código Estudiante')
                     ->searchable()
                     ->sortable()
                     ->copyable()
-                    ->copyMessage('DNI copiado al portapapeles'),
+                    ->copyMessage('Código copiado al portapapeles'),
 
                 TextColumn::make('profile.full_name')
                     ->label('Estudiante')

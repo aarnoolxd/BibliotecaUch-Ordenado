@@ -61,7 +61,7 @@ class ProfileResourceTest extends TestCase
             'email' => 'maria.lopez@uch.pe',
         ]);
         $linkedProfile = Profile::factory()->for($linkedUser)->create([
-            'dni' => '71234567',
+            'student_code' => '71234567',
             'first_name' => 'Maria Elena',
             'last_name' => 'Lopez',
             'maternal_last_name' => 'Diaz',
@@ -71,7 +71,7 @@ class ProfileResourceTest extends TestCase
             'phone' => '987654321',
         ]);
         $unlinkedProfile = Profile::factory()->teacher()->create([
-            'dni' => '72345678',
+            'student_code' => '72345678',
             'first_name' => 'Carlos',
             'last_name' => 'Quispe',
             'maternal_last_name' => 'Huaman',
@@ -80,7 +80,7 @@ class ProfileResourceTest extends TestCase
 
         $this->get(ProfileResource::getUrl('index'))
             ->assertOk()
-            ->assertSeeText($linkedProfile->dni)
+            ->assertSeeText($linkedProfile->student_code)
             ->assertSeeText($linkedProfile->first_name)
             ->assertSeeText($linkedProfile->last_name)
             ->assertSeeText($linkedProfile->maternal_last_name)
@@ -89,7 +89,7 @@ class ProfileResourceTest extends TestCase
             ->assertSeeText(Profile::USER_TYPE_STUDENT)
             ->assertSeeText($linkedUser->email)
             ->assertSeeText($linkedProfile->phone)
-            ->assertSeeText($unlinkedProfile->dni)
+            ->assertSeeText($unlinkedProfile->student_code)
             ->assertSeeText($unlinkedProfile->maternal_last_name)
             ->assertSeeText(Profile::USER_TYPE_TEACHER)
             ->assertSeeText('Sin cuenta vinculada');
@@ -154,14 +154,14 @@ class ProfileResourceTest extends TestCase
     }
 
     /**
-     * La tabla de perfiles permite buscar por DNI, nombres, apellidos, programa,
+     * La tabla de perfiles permite buscar por Código, nombres, apellidos, programa,
      * tipo de usuario, correo de cuenta vinculada y celular.
      */
     public function test_profiles_table_can_search_by_dni_names_academic_data_linked_email_and_phone(): void
     {
         $linkedUser = User::factory()->create(['email' => 'buscar.perfil@uch.pe']);
         $matchingProfile = Profile::factory()->for($linkedUser)->create([
-            'dni' => '70112233',
+            'student_code' => '70112233',
             'first_name' => 'Valeria',
             'last_name' => 'Mendoza',
             'maternal_last_name' => 'Espinoza',
@@ -171,7 +171,7 @@ class ProfileResourceTest extends TestCase
             'phone' => '991122334',
         ]);
         $otherProfile = Profile::factory()->teacher()->create([
-            'dni' => '79887766',
+            'student_code' => '79887766',
             'first_name' => 'Diego',
             'last_name' => 'Salazar',
             'maternal_last_name' => 'Rojas',
@@ -199,24 +199,24 @@ class ProfileResourceTest extends TestCase
     }
 
     /**
-     * La tabla de perfiles permite ordenar ascendente y descendentemente por DNI y nombres.
+     * La tabla de perfiles permite ordenar ascendente y descendentemente por Código y nombres.
      */
     public function test_profiles_table_can_sort_by_dni_and_first_name(): void
     {
         $first = Profile::factory()->create([
-            'dni' => '70000001',
+            'student_code' => '70000001',
             'first_name' => 'Bruno',
         ]);
         $second = Profile::factory()->create([
-            'dni' => '70000002',
+            'student_code' => '70000002',
             'first_name' => 'Andrea',
         ]);
         $this->signInWithPermissions('ViewAny_Profile');
 
         Livewire::test(ListProfiles::class)
-            ->sortTable('dni')
+            ->sortTable('student_code')
             ->assertCanSeeTableRecords([$first, $second], inOrder: true)
-            ->sortTable('dni', 'desc')
+            ->sortTable('student_code', 'desc')
             ->assertCanSeeTableRecords([$second, $first], inOrder: true)
             ->sortTable('first_name')
             ->assertCanSeeTableRecords([$second, $first], inOrder: true);
@@ -236,7 +236,7 @@ class ProfileResourceTest extends TestCase
         );
         $linkedUser = User::factory()->create(['email' => 'ficha.estudiante@uch.pe']);
         $studentProfile = Profile::factory()->for($linkedUser)->withPhoto('profiles/photos/ficha.jpg')->create([
-            'dni' => '74125896',
+            'student_code' => '74125896',
             'first_name' => 'Lucia',
             'last_name' => 'Diestra',
             'maternal_last_name' => 'Espinoza',
@@ -247,7 +247,7 @@ class ProfileResourceTest extends TestCase
             'address' => 'Av. Universitaria 5175',
         ]);
         $teacherProfile = Profile::factory()->teacher()->create([
-            'dni' => '74125897',
+            'student_code' => '74125897',
             'first_name' => 'Carlos',
             'last_name' => 'Lozano',
             'maternal_last_name' => 'Rivas',
@@ -329,7 +329,7 @@ class ProfileResourceTest extends TestCase
         Livewire::test(CreateProfile::class)
             ->fillForm([
                 'user_id' => $linkedUser->getKey(),
-                'dni' => '71234567',
+                'student_code' => '71234567',
                 'first_name' => 'Juan Alberto',
                 'last_name' => 'Sedano',
                 'maternal_last_name' => 'Quispe',
@@ -345,7 +345,7 @@ class ProfileResourceTest extends TestCase
             ->assertNotified('Perfil registrado')
             ->assertRedirect(ProfileResource::getUrl('index'));
 
-        $createdProfile = Profile::query()->where('dni', '71234567')->firstOrFail();
+        $createdProfile = Profile::query()->where('student_code', '71234567')->firstOrFail();
 
         $this->assertSame($linkedUser->getKey(), $createdProfile->user_id);
         $this->assertSame('Juan Alberto', $createdProfile->first_name);
@@ -370,15 +370,15 @@ class ProfileResourceTest extends TestCase
         $this->signInWithPermissions('ViewAny_Profile', 'Create_Profile');
 
         $cases = [
-            ['dni' => '71111111', 'first_name' => 'Lucia', 'user_type' => Profile::USER_TYPE_TEACHER, 'phone' => '911111111'],
-            ['dni' => '72222222', 'first_name' => 'Mateo', 'user_type' => Profile::USER_TYPE_ADMINISTRATIVE, 'phone' => '+51922222222'],
+            ['student_code' => '71111111', 'first_name' => 'Lucia', 'user_type' => Profile::USER_TYPE_TEACHER, 'phone' => '911111111'],
+            ['student_code' => '72222222', 'first_name' => 'Mateo', 'user_type' => Profile::USER_TYPE_ADMINISTRATIVE, 'phone' => '+51922222222'],
         ];
 
         foreach ($cases as $case) {
             Livewire::test(CreateProfile::class)
                 ->fillForm([
                     'user_id' => null,
-                    'dni' => $case['dni'],
+                    'student_code' => $case['student_code'],
                     'first_name' => $case['first_name'],
                     'last_name' => 'Rojas',
                     'maternal_last_name' => 'Paredes',
@@ -393,7 +393,7 @@ class ProfileResourceTest extends TestCase
 
         $this->assertDatabaseCount('profiles', 2);
         $this->assertDatabaseHas('profiles', [
-            'dni' => '71111111',
+            'student_code' => '71111111',
             'user_id' => null,
             'user_type' => Profile::USER_TYPE_TEACHER,
             'program' => null,
@@ -402,7 +402,7 @@ class ProfileResourceTest extends TestCase
             'address' => null,
         ]);
         $this->assertDatabaseHas('profiles', [
-            'dni' => '72222222',
+            'student_code' => '72222222',
             'user_id' => null,
             'user_type' => Profile::USER_TYPE_ADMINISTRATIVE,
             'program' => null,
@@ -413,14 +413,14 @@ class ProfileResourceTest extends TestCase
     }
 
     /**
-     * Un usuario con Update_Profile puede editar un perfil conservando su propio DNI y cuenta
+     * Un usuario con Update_Profile puede editar un perfil conservando su propio Código y cuenta
      * vinculada (ignoreRecord), actualizando el resto de metadatos con notificación y redirección.
      */
     public function test_a_user_with_update_permission_can_edit_a_profile_keeping_its_own_dni_and_linked_user(): void
     {
         $linkedUser = User::factory()->create();
         $profile = Profile::factory()->for($linkedUser)->create([
-            'dni' => '73456789',
+            'student_code' => '73456789',
             'first_name' => 'Ana',
             'last_name' => 'Torres',
             'maternal_last_name' => 'Vega',
@@ -435,7 +435,7 @@ class ProfileResourceTest extends TestCase
         Livewire::test(EditProfile::class, ['record' => $profile->getRouteKey()])
             ->fillForm([
                 'user_id' => $linkedUser->getKey(),
-                'dni' => '73456789',
+                'student_code' => '73456789',
                 'first_name' => 'Ana Maria',
                 'last_name' => 'Torres',
                 'maternal_last_name' => 'Quispe',
@@ -453,7 +453,7 @@ class ProfileResourceTest extends TestCase
         $profile->refresh();
 
         $this->assertSame($linkedUser->getKey(), $profile->user_id);
-        $this->assertSame('73456789', $profile->dni);
+        $this->assertSame('73456789', $profile->student_code);
         $this->assertSame('Ana Maria', $profile->first_name);
         $this->assertSame('Torres', $profile->last_name);
         $this->assertSame('Quispe', $profile->maternal_last_name);
@@ -552,15 +552,15 @@ class ProfileResourceTest extends TestCase
     }
 
     /**
-     * Al editar un perfil, no debe permitirse tomar el DNI ni la cuenta de usuario ya
+     * Al editar un perfil, no debe permitirse tomar el Código ni la cuenta de usuario ya
      * asignados a otro perfil existente.
      */
     public function test_editing_a_profile_rejects_dni_or_user_belonging_to_another_profile(): void
     {
         $otherUser = User::factory()->create();
-        Profile::factory()->for($otherUser)->create(['dni' => '74444444']);
+        Profile::factory()->for($otherUser)->create(['student_code' => '74444444']);
         $profile = Profile::factory()->create([
-            'dni' => '75555555',
+            'student_code' => '75555555',
             'first_name' => 'Pedro',
             'last_name' => 'Campos',
             'maternal_last_name' => 'Paz',
@@ -570,7 +570,7 @@ class ProfileResourceTest extends TestCase
         Livewire::test(EditProfile::class, ['record' => $profile->getRouteKey()])
             ->fillForm([
                 'user_id' => $otherUser->getKey(),
-                'dni' => '74444444',
+                'student_code' => '74444444',
                 'first_name' => 'Pedro Modificado',
                 'last_name' => 'Campos',
                 'maternal_last_name' => 'Paz',
@@ -578,14 +578,14 @@ class ProfileResourceTest extends TestCase
             ->call('save')
             ->assertHasFormErrors([
                 'user_id' => 'La cuenta de usuario seleccionada ya tiene un perfil vinculado.',
-                'dni' => 'Este número de DNI ya se encuentra registrado.',
+                'student_code' => 'Este número de código ya se encuentra registrado.',
             ])
             ->assertNotNotified();
 
         $profile->refresh();
 
         $this->assertNull($profile->user_id);
-        $this->assertSame('75555555', $profile->dni);
+        $this->assertSame('75555555', $profile->student_code);
         $this->assertSame('Pedro', $profile->first_name);
     }
 
@@ -636,18 +636,18 @@ class ProfileResourceTest extends TestCase
     }
 
     /**
-     * Al actualizar el DNI de un perfil, los préstamos vinculados sincronizan automáticamente
-     * su columna student_dni con el nuevo número de documento.
+     * Al actualizar el Código de un perfil, los préstamos vinculados sincronizan automáticamente
+     * su columna student_code con el nuevo número de documento.
      */
-    public function test_updating_profile_dni_synchronizes_student_dni_on_linked_borrowings(): void
+    public function test_updating_profile_dni_synchronizes_student_code_on_linked_borrowings(): void
     {
-        $profile = Profile::factory()->create(['dni' => '71110001']);
-        $borrowing = Borrowing::factory()->for($profile)->create(['student_dni' => '71110001']);
+        $profile = Profile::factory()->create(['student_code' => '71110001']);
+        $borrowing = Borrowing::factory()->for($profile)->create(['student_code' => '71110001']);
         $this->signInWithPermissions('ViewAny_Profile', 'Update_Profile');
 
         Livewire::test(EditProfile::class, ['record' => $profile->getRouteKey()])
             ->fillForm([
-                'dni' => '71119999',
+                'student_code' => '71119999',
                 'first_name' => $profile->first_name,
                 'last_name' => $profile->last_name,
                 'maternal_last_name' => $profile->maternal_last_name,
@@ -659,7 +659,7 @@ class ProfileResourceTest extends TestCase
             ->call('save')
             ->assertHasNoFormErrors();
 
-        $this->assertSame('71119999', $borrowing->fresh()->student_dni);
+        $this->assertSame('71119999', $borrowing->fresh()->student_code);
 
         $levelBeforeSave = DB::transactionLevel();
         $levelDuringUpdated = null;
@@ -669,11 +669,11 @@ class ProfileResourceTest extends TestCase
         });
 
         $profile->refresh();
-        $profile->dni = '71118888';
+        $profile->student_code = '71118888';
         $profile->save();
 
         $this->assertSame($levelBeforeSave + 1, $levelDuringUpdated);
-        $this->assertSame('71118888', $borrowing->fresh()->student_dni);
+        $this->assertSame('71118888', $borrowing->fresh()->student_code);
     }
 
     /**
@@ -765,7 +765,7 @@ class ProfileResourceTest extends TestCase
 
         Livewire::test(CreateProfile::class)
             ->fillForm([
-                'dni' => '',
+                'student_code' => '',
                 'first_name' => '',
                 'last_name' => '',
                 'maternal_last_name' => '',
@@ -774,12 +774,11 @@ class ProfileResourceTest extends TestCase
             ])
             ->call('create')
             ->assertHasFormErrors([
-                'dni' => 'El número de DNI es obligatorio.',
+                'student_code' => 'El código de estudiante es obligatorio.',
                 'first_name' => 'Los nombres son obligatorios.',
                 'last_name' => 'El apellido paterno es obligatorio.',
                 'maternal_last_name' => 'El apellido materno es obligatorio.',
                 'user_type' => 'El tipo de usuario es obligatorio.',
-                'phone' => 'El número de celular es obligatorio.',
             ])
             ->assertNotNotified();
 
@@ -795,7 +794,7 @@ class ProfileResourceTest extends TestCase
 
         Livewire::test(CreateProfile::class)
             ->fillForm([
-                'dni' => '71234567',
+                'student_code' => '71234567',
                 'first_name' => 'Juan Alberto',
                 'last_name' => 'Sedano',
                 'maternal_last_name' => 'Quispe',
@@ -820,20 +819,10 @@ class ProfileResourceTest extends TestCase
     public static function invalidProfileFieldValuesProvider(): array
     {
         return [
-            'dni menor a 8 digitos' => [
-                'overrides' => ['dni' => '1234567'],
-                'field' => 'dni',
-                'expectedMessage' => 'El DNI debe tener exactamente 8 dígitos.',
-            ],
-            'dni mayor a 8 digitos' => [
-                'overrides' => ['dni' => '123456789'],
-                'field' => 'dni',
-                'expectedMessage' => 'El DNI no puede superar los 8 dígitos.',
-            ],
-            'dni no numerico de 8 caracteres' => [
-                'overrides' => ['dni' => '1234567A'],
-                'field' => 'dni',
-                'expectedMessage' => 'El DNI debe contener exactamente 8 dígitos numéricos.',
+            'codigo supera 50 caracteres' => [
+                'overrides' => ['student_code' => str_repeat('1', 51)],
+                'field' => 'student_code',
+                'expectedMessage' => 'El código no puede superar los 50 caracteres.',
             ],
             'nombres demasiado cortos' => [
                 'overrides' => ['first_name' => 'A'],
@@ -914,7 +903,7 @@ class ProfileResourceTest extends TestCase
 
         Livewire::test(CreateProfile::class)
             ->fillForm(array_merge([
-                'dni' => '71234567',
+                'student_code' => '71234567',
                 'first_name' => 'Juan Alberto',
                 'last_name' => 'Sedano',
                 'maternal_last_name' => 'Quispe',
@@ -932,19 +921,19 @@ class ProfileResourceTest extends TestCase
     }
 
     /**
-     * El formulario debe rechazar tanto un DNI duplicado como una cuenta de usuario que
+     * El formulario debe rechazar tanto un Código duplicado como una cuenta de usuario que
      * ya tenga un perfil vinculado, mostrando los mensajes personalizados.
      */
     public function test_creating_a_profile_rejects_duplicate_dni_and_already_linked_user(): void
     {
         $existingUser = User::factory()->create();
-        Profile::factory()->for($existingUser)->create(['dni' => '76666666']);
+        Profile::factory()->for($existingUser)->create(['student_code' => '76666666']);
         $this->signInWithPermissions('ViewAny_Profile', 'Create_Profile');
 
         Livewire::test(CreateProfile::class)
             ->fillForm([
                 'user_id' => $existingUser->getKey(),
-                'dni' => '76666666',
+                'student_code' => '76666666',
                 'first_name' => 'Otra Persona',
                 'last_name' => 'Mismo',
                 'maternal_last_name' => 'Dni',
@@ -954,7 +943,7 @@ class ProfileResourceTest extends TestCase
             ->call('create')
             ->assertHasFormErrors([
                 'user_id' => 'La cuenta de usuario seleccionada ya tiene un perfil vinculado.',
-                'dni' => 'Este número de DNI ya se encuentra registrado.',
+                'student_code' => 'Este número de código ya se encuentra registrado.',
             ])
             ->assertNotNotified();
 
@@ -973,7 +962,7 @@ class ProfileResourceTest extends TestCase
 
         Livewire::test(CreateProfile::class)
             ->fillForm([
-                'dni' => '77777771',
+                'student_code' => '77777771',
                 'first_name' => 'Rosa',
                 'last_name' => 'Gomez',
                 'maternal_last_name' => 'Diaz',
@@ -989,7 +978,7 @@ class ProfileResourceTest extends TestCase
 
         Livewire::test(CreateProfile::class)
             ->fillForm([
-                'dni' => '77777772',
+                'student_code' => '77777772',
                 'first_name' => 'Rosa',
                 'last_name' => 'Gomez',
                 'maternal_last_name' => 'Diaz',

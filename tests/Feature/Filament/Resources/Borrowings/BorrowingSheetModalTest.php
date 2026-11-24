@@ -52,7 +52,7 @@ class BorrowingSheetModalTest extends TestCase
 
         $registrar = User::factory()->create(['name' => 'Bibliotecario Turno Mañana']);
         $profile = Profile::factory()->withPhoto('profiles/photos/estudiante.jpg')->create([
-            'dni' => '74561234',
+            'student_code' => '74561234',
             'first_name' => 'Andrea',
             'last_name' => 'Gomez',
             'maternal_last_name' => 'Rios',
@@ -92,7 +92,7 @@ class BorrowingSheetModalTest extends TestCase
             ->withAdditionalEquipment($mouse)
             ->create([
                 'profile_id' => null,
-                'student_dni' => '79001122',
+                'student_code' => '79001122',
                 'observations' => null,
             ]);
 
