@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Roles\Pages;
 
+use App\Filament\Resources\EditRecord;
 use App\Filament\Resources\Roles\RoleResource;
 use BezhanSalleh\FilamentShield\Support\Utils;
-use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Collection;
 
 class EditRole extends EditRecord
@@ -41,5 +41,20 @@ class EditRole extends EditRecord
         });
 
         $this->record->syncPermissions($permissionModels);
+    }
+
+    protected function getSaveConfirmationHeading(): string
+    {
+        return '¿Guardar permisos?';
+    }
+
+    protected function getSaveConfirmationDescription(): string
+    {
+        return 'Se actualizarán los permisos del rol.';
+    }
+
+    protected function getSavedNotificationTitle(): ?string
+    {
+        return 'Rol actualizado';
     }
 }

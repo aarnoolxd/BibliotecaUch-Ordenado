@@ -39,13 +39,23 @@ class CreateRole extends CreateRecord
         $this->record->syncPermissions($permissionModels);
     }
 
-    protected function getCreatedNotificationTitle(): ?string
+    protected function getCreateConfirmationHeading(): string
     {
-        return 'Rol creado exitosamente';
+        return '¿Crear rol?';
     }
 
-    protected function getRedirectUrl(): string
+    protected function getCreateConfirmationDescription(): string
     {
-        return $this->getResource()::getUrl('index');
+        return 'Se guardará el rol y sus permisos.';
+    }
+
+    protected function getCreateConfirmationSubmitLabel(): string
+    {
+        return 'Crear';
+    }
+
+    protected function getCreatedNotificationTitle(): ?string
+    {
+        return 'Rol creado';
     }
 }
