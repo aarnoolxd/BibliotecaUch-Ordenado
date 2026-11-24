@@ -7,11 +7,13 @@ namespace App\Services;
 use App\Models\Equipment;
 use App\Models\Profile;
 use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Color;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -22,47 +24,49 @@ class ExportHistoryExcelService
      */
     public function exportStudentHistory(Profile $profile): StreamedResponse
     {
-        $profile->loadMissing(['borrowings.equipment', 'borrowings.additionalEquipment', 'borrowings.registeredBy']);
-        $borrowings = $profile->borrowings()->orderByDesc('borrowing_date')->get();
+        $borrowings = $profile->borrowings()
+            ->with(['equipment', 'additionalEquipment', 'registeredBy'])
+            ->orderByDesc('borrowing_date')
+            ->get();
 
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Historial de Préstamos');
 
-        // Estilos base
         $sheet->setShowGridLines(true);
 
-        // Título Principal
         $sheet->mergeCells('A1:I1');
-        $sheet->setCellValue('A1', 'UNIVERSIDAD DE CIENCIAS Y HUMANIDADES - FICHA DE PRÉSTAMOS');
+        $this->setStringCell($sheet, 'A1', 'UNIVERSIDAD DE CIENCIAS Y HUMANIDADES - FICHA DE PRÉSTAMOS');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->setColor(new Color('FFFFFFFF'));
         $sheet->getStyle('A1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF0A2D5F');
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
         $sheet->getRowDimension(1)->setRowHeight(30);
 
-        // Bloque de datos del estudiante
         $hasActive = $profile->hasActiveBorrowing() ? 'SÍ (Préstamo en curso)' : 'NO (Sin deudas)';
 
         $infoData = [
             ['Código de estudiante:', $profile->student_code, 'Carrera / Especialidad:', $profile->program ?? 'No especificado'],
             ['Estudiante:', $profile->full_name, 'Ciclo académico:', $profile->cycle ? 'Ciclo '.$profile->cycle : 'No registrado'],
             ['Tipo de usuario:', $profile->user_type ?? 'Estudiante', 'Modalidad / Turno:', trim(($profile->modality ?? '').' / '.($profile->shift ?? ''), ' /') ?: 'No registrado'],
-            ['Total préstamos:', (string) $borrowings->count(), '¿Tiene préstamo activo?:', $hasActive],
+            ['Total préstamos:', $borrowings->count(), '¿Tiene préstamo activo?:', $hasActive],
         ];
 
         $currentInfoRow = 3;
         foreach ($infoData as $row) {
-            $sheet->setCellValue('A'.$currentInfoRow, $row[0]);
-            $sheet->setCellValue('B'.$currentInfoRow, $row[1]);
-            $sheet->setCellValue('D'.$currentInfoRow, $row[2]);
-            $sheet->setCellValue('E'.$currentInfoRow, $row[3]);
+            $this->setStringCell($sheet, 'A'.$currentInfoRow, (string) $row[0]);
+            if (is_int($row[1])) {
+                $sheet->setCellValueExplicit('B'.$currentInfoRow, $row[1], DataType::TYPE_NUMERIC);
+            } else {
+                $this->setStringCell($sheet, 'B'.$currentInfoRow, (string) ($row[1] ?? ''));
+            }
+            $this->setStringCell($sheet, 'D'.$currentInfoRow, (string) $row[2]);
+            $this->setStringCell($sheet, 'E'.$currentInfoRow, (string) ($row[3] ?? ''));
 
             $sheet->getStyle('A'.$currentInfoRow)->getFont()->setBold(true);
             $sheet->getStyle('D'.$currentInfoRow)->getFont()->setBold(true);
             $currentInfoRow++;
         }
 
-        // Encabezados de la tabla de préstamos
         $tableHeaderRow = 8;
         $headers = [
             'ID',
@@ -78,7 +82,7 @@ class ExportHistoryExcelService
 
         $colLetter = 'A';
         foreach ($headers as $header) {
-            $sheet->setCellValue($colLetter.$tableHeaderRow, $header);
+            $this->setStringCell($sheet, $colLetter.$tableHeaderRow, $header);
             $colLetter++;
         }
 
@@ -87,12 +91,11 @@ class ExportHistoryExcelService
         $sheet->getStyle("A{$tableHeaderRow}:I{$tableHeaderRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getRowDimension($tableHeaderRow)->setRowHeight(24);
 
-        // Llenar datos de los préstamos
         $dataRow = $tableHeaderRow + 1;
 
         if ($borrowings->isEmpty()) {
             $sheet->mergeCells("A{$dataRow}:I{$dataRow}");
-            $sheet->setCellValue("A{$dataRow}", 'No registra préstamos en el sistema.');
+            $this->setStringCell($sheet, "A{$dataRow}", 'No registra préstamos en el sistema.');
             $sheet->getStyle("A{$dataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $dataRow++;
         } else {
@@ -109,26 +112,24 @@ class ExportHistoryExcelService
                 $dueDate = $b->due_date ? Carbon::parse($b->due_date)->format('d/m/Y H:i') : '-';
                 $returnDate = $b->return_date ? Carbon::parse($b->return_date)->format('d/m/Y H:i') : 'Pendiente';
 
-                $sheet->setCellValue('A'.$dataRow, (string) $b->getKey());
-                $sheet->setCellValue('B'.$dataRow, $mainEquip);
-                $sheet->setCellValue('C'.$dataRow, $patrimonial);
-                $sheet->setCellValue('D'.$dataRow, $additionals);
-                $sheet->setCellValue('E'.$dataRow, $borrowingDate);
-                $sheet->setCellValue('F'.$dataRow, $dueDate);
-                $sheet->setCellValue('G'.$dataRow, $returnDate);
-                $sheet->setCellValue('H'.$dataRow, $b->status);
-                $sheet->setCellValue('I'.$dataRow, $b->observations ?? '-');
+                $sheet->setCellValueExplicit('A'.$dataRow, (int) $b->getKey(), DataType::TYPE_NUMERIC);
+                $this->setStringCell($sheet, 'B'.$dataRow, $mainEquip);
+                $this->setStringCell($sheet, 'C'.$dataRow, $patrimonial);
+                $this->setStringCell($sheet, 'D'.$dataRow, $additionals);
+                $this->setStringCell($sheet, 'E'.$dataRow, $borrowingDate);
+                $this->setStringCell($sheet, 'F'.$dataRow, $dueDate);
+                $this->setStringCell($sheet, 'G'.$dataRow, $returnDate);
+                $this->setStringCell($sheet, 'H'.$dataRow, $b->status);
+                $this->setStringCell($sheet, 'I'.$dataRow, $b->observations ?? '-');
 
-                // Alinear fechas e ID
                 $sheet->getStyle("A{$dataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("C{$dataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("E{$dataRow}:H{$dataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-                // Estilo condicional según estado
                 $statusColor = match ($b->status) {
-                    'Devuelto' => 'FF16A34A', // Verde
-                    'En curso' => 'FF2563EB', // Azul
-                    'Vencido' => 'FFDC2626',  // Rojo
+                    'Devuelto' => 'FF16A34A',
+                    'En curso' => 'FF2563EB',
+                    'Vencido' => 'FFDC2626',
                     default => 'FF6B7280',
                 };
                 $sheet->getStyle("H{$dataRow}")->getFont()->setBold(true)->setColor(new Color($statusColor));
@@ -137,11 +138,9 @@ class ExportHistoryExcelService
             }
         }
 
-        // Borde en tabla
         $lastRow = $dataRow - 1;
         $sheet->getStyle("A{$tableHeaderRow}:I{$lastRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->setColor(new Color('FFD1D5DB'));
 
-        // Auto-ajustar anchos de columnas
         foreach (range('A', 'I') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
@@ -164,9 +163,6 @@ class ExportHistoryExcelService
      */
     public function exportEquipmentHistory(Equipment $equipment): StreamedResponse
     {
-        $equipment->loadMissing(['borrowings.profile', 'borrowings.registeredBy', 'additionalBorrowings.profile', 'additionalBorrowings.registeredBy']);
-
-        // Combinar préstamos principales y adicionales
         $primaryBorrowings = $equipment->borrowings()->with(['profile', 'registeredBy'])->get();
         $additionalBorrowings = $equipment->additionalBorrowings()->with(['profile', 'registeredBy'])->get();
 
@@ -178,35 +174,36 @@ class ExportHistoryExcelService
 
         $sheet->setShowGridLines(true);
 
-        // Título Principal
         $sheet->mergeCells('A1:J1');
-        $sheet->setCellValue('A1', 'UNIVERSIDAD DE CIENCIAS Y HUMANIDADES - TRAZABILIDAD DE EQUIPO');
+        $this->setStringCell($sheet, 'A1', 'UNIVERSIDAD DE CIENCIAS Y HUMANIDADES - TRAZABILIDAD DE EQUIPO');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14)->setColor(new Color('FFFFFFFF'));
         $sheet->getStyle('A1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF0A2D5F');
         $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
         $sheet->getRowDimension(1)->setRowHeight(30);
 
-        // Bloque de datos del equipo
         $infoData = [
             ['Código Patrimonial:', $equipment->patrimonial_code, 'Tipo de Equipo:', $equipment->type],
             ['Marca y Modelo:', "{$equipment->brand} {$equipment->model}", 'Número de Serie:', $equipment->serial_number ?: 'Sin número de serie'],
-            ['Estado Actual:', $equipment->status, 'Total de Préstamos:', (string) $allBorrowings->count()],
+            ['Estado Actual:', $equipment->status, 'Total de Préstamos:', $allBorrowings->count()],
             ['Observaciones:', $equipment->observations ?: 'Sin observaciones técnicas', '', ''],
         ];
 
         $currentInfoRow = 3;
         foreach ($infoData as $row) {
-            $sheet->setCellValue('A'.$currentInfoRow, $row[0]);
-            $sheet->setCellValue('B'.$currentInfoRow, $row[1]);
-            $sheet->setCellValue('D'.$currentInfoRow, $row[2]);
-            $sheet->setCellValue('E'.$currentInfoRow, $row[3]);
+            $this->setStringCell($sheet, 'A'.$currentInfoRow, (string) $row[0]);
+            $this->setStringCell($sheet, 'B'.$currentInfoRow, (string) ($row[1] ?? ''));
+            $this->setStringCell($sheet, 'D'.$currentInfoRow, (string) $row[2]);
+            if (is_int($row[3])) {
+                $sheet->setCellValueExplicit('E'.$currentInfoRow, $row[3], DataType::TYPE_NUMERIC);
+            } else {
+                $this->setStringCell($sheet, 'E'.$currentInfoRow, (string) ($row[3] ?? ''));
+            }
 
             $sheet->getStyle('A'.$currentInfoRow)->getFont()->setBold(true);
             $sheet->getStyle('D'.$currentInfoRow)->getFont()->setBold(true);
             $currentInfoRow++;
         }
 
-        // Encabezados de la tabla de alumnos
         $tableHeaderRow = 8;
         $headers = [
             'ID Préstamo',
@@ -223,7 +220,7 @@ class ExportHistoryExcelService
 
         $colLetter = 'A';
         foreach ($headers as $header) {
-            $sheet->setCellValue($colLetter.$tableHeaderRow, $header);
+            $this->setStringCell($sheet, $colLetter.$tableHeaderRow, $header);
             $colLetter++;
         }
 
@@ -236,7 +233,7 @@ class ExportHistoryExcelService
 
         if ($allBorrowings->isEmpty()) {
             $sheet->mergeCells("A{$dataRow}:J{$dataRow}");
-            $sheet->setCellValue("A{$dataRow}", 'Este equipo aún no ha sido prestado.');
+            $this->setStringCell($sheet, "A{$dataRow}", 'Este equipo aún no ha sido prestado.');
             $sheet->getStyle("A{$dataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $dataRow++;
         } else {
@@ -260,16 +257,16 @@ class ExportHistoryExcelService
                     $durationText = 'En uso actual';
                 }
 
-                $sheet->setCellValue('A'.$dataRow, (string) $b->getKey());
-                $sheet->setCellValue('B'.$dataRow, $borrowingDate ? $borrowingDate->format('d/m/Y H:i') : '-');
-                $sheet->setCellValue('C'.$dataRow, $returnDate ? $returnDate->format('d/m/Y H:i') : 'Pendiente');
-                $sheet->setCellValue('D'.$dataRow, $durationText);
-                $sheet->setCellValue('E'.$dataRow, $studentCode);
-                $sheet->setCellValue('F'.$dataRow, $studentName);
-                $sheet->setCellValue('G'.$dataRow, $program);
-                $sheet->setCellValue('H'.$dataRow, $cycle);
-                $sheet->setCellValue('I'.$dataRow, $b->status);
-                $sheet->setCellValue('J'.$dataRow, $b->observations ?? '-');
+                $sheet->setCellValueExplicit('A'.$dataRow, (int) $b->getKey(), DataType::TYPE_NUMERIC);
+                $this->setStringCell($sheet, 'B'.$dataRow, $borrowingDate ? $borrowingDate->format('d/m/Y H:i') : '-');
+                $this->setStringCell($sheet, 'C'.$dataRow, $returnDate ? $returnDate->format('d/m/Y H:i') : 'Pendiente');
+                $this->setStringCell($sheet, 'D'.$dataRow, $durationText);
+                $this->setStringCell($sheet, 'E'.$dataRow, $studentCode);
+                $this->setStringCell($sheet, 'F'.$dataRow, $studentName);
+                $this->setStringCell($sheet, 'G'.$dataRow, $program);
+                $this->setStringCell($sheet, 'H'.$dataRow, $cycle);
+                $this->setStringCell($sheet, 'I'.$dataRow, $b->status);
+                $this->setStringCell($sheet, 'J'.$dataRow, $b->observations ?? '-');
 
                 $sheet->getStyle("A{$dataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle("B{$dataRow}:E{$dataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
@@ -305,5 +302,13 @@ class ExportHistoryExcelService
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
             'Cache-Control' => 'max-age=0',
         ]);
+    }
+
+    /**
+     * Escribe texto explícitamente como cadena literal para evitar inyección de fórmulas XLSX.
+     */
+    private function setStringCell(Worksheet $sheet, string $coordinate, ?string $value): void
+    {
+        $sheet->setCellValueExplicit($coordinate, (string) ($value ?? ''), DataType::TYPE_STRING);
     }
 }
