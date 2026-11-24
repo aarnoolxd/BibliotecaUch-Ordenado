@@ -36,7 +36,7 @@
     <div
         x-data="{ open: false }"
         x-on:keydown.escape.window.capture="if (open) { $event.stopImmediatePropagation(); open = false; }"
-        class="lightbox-wrapper"
+        {{ $getExtraAttributeBag()->class(['lightbox-wrapper']) }}
     >
         <button
             type="button"
