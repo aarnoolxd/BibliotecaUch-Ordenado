@@ -51,7 +51,7 @@ class PermissionsTable
                             return $query;
                         }
 
-                        return $query->whereRaw("name LIKE ? ESCAPE '\\'", ['%\_'.$module]);
+                        return $query->whereRaw("name LIKE ? ESCAPE '!'", ['%!_'.$module]);
                     }),
             ], layout: FiltersLayout::Modal)
             ->filtersTriggerAction(
