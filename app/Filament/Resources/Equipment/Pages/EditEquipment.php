@@ -22,7 +22,9 @@ class EditEquipment extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            EquipmentResource::equipmentDetailsAction(),
+        ];
     }
 
     protected function afterFill(): void

@@ -3,6 +3,8 @@
 namespace Tests\Feature\Filament\Resources\Borrowings;
 
 use App\Filament\Resources\Borrowings\BorrowingResource;
+use App\Filament\Resources\Borrowings\Pages\CreateBorrowing;
+use App\Filament\Resources\Borrowings\Pages\EditBorrowing;
 use App\Filament\Resources\Borrowings\Pages\ListBorrowings;
 use App\Models\Borrowing;
 use App\Models\Equipment;
@@ -158,6 +160,67 @@ class BorrowingSheetModalTest extends TestCase
 
         Livewire::test(ListBorrowings::class)
             ->assertActionHidden(TestAction::make(ViewAction::class)->table($borrowing));
+    }
+
+    /**
+     * En los formularios de creación y edición de préstamo, el botón del ojito junto a
+     * Estudiante Identificado permanece deshabilitado sin código válido y abre la ficha del perfil
+     * cuando existe un estudiante identificado.
+     */
+    public function test_borrowing_create_and_edit_forms_can_open_the_identified_student_profile_sheet(): void
+    {
+        $profile = Profile::factory()->create([
+            'student_code' => '76543210',
+            'first_name' => 'Lucia',
+            'last_name' => 'Vargas',
+            'maternal_last_name' => 'Salas',
+            'user_type' => Profile::USER_TYPE_STUDENT,
+            'program' => 'Ingeniería de Sistemas e Informática',
+            'cycle' => 6,
+            'phone' => '912345678',
+            'address' => 'Av. Universitaria 5175',
+        ]);
+        $equipment = Equipment::factory()->ofType('Laptop')->withStatus('Prestado')->create();
+        $borrowing = Borrowing::factory()
+            ->for($equipment)
+            ->for($profile)
+            ->create([
+                'student_code' => $profile->student_code,
+                'status' => Borrowing::STATUS_IN_PROGRESS,
+            ]);
+
+        $viewProfileAction = TestAction::make('viewStudentProfile')->schemaComponent('student_name');
+
+        $this->signInWithPermissions('ViewAny_Borrowing', 'Create_Borrowing', 'Update_Borrowing');
+
+        Livewire::test(CreateBorrowing::class)
+            ->assertActionDisabled($viewProfileAction)
+            ->set('data.student_code', $profile->student_code)
+            ->assertActionEnabled($viewProfileAction)
+            ->mountAction($viewProfileAction)
+            ->assertActionMounted($viewProfileAction)
+            ->assertMountedActionModalSee([
+                'Ficha del perfil',
+                'COMUNIDAD UCH',
+                'Lucia Vargas Salas',
+                'Ingeniería de Sistemas e Informática',
+                'Ciclo 6',
+                '76543210',
+                '912345678',
+                'Av. Universitaria 5175',
+                'Cerrar ficha',
+            ]);
+
+        Livewire::test(EditBorrowing::class, ['record' => $borrowing->getRouteKey()])
+            ->assertActionEnabled($viewProfileAction)
+            ->mountAction($viewProfileAction)
+            ->assertActionMounted($viewProfileAction)
+            ->assertMountedActionModalSee([
+                'Ficha del perfil',
+                'Lucia Vargas Salas',
+                '76543210',
+                'Cerrar ficha',
+            ]);
     }
 
     private function signInWithPermissions(string ...$permissionNames): User

@@ -1,0 +1,123 @@
+.equipment-sheet-hero {
+    position: relative;
+    padding: 1.75rem;
+    border-inline-start: 4px solid #c69b55;
+    border-radius: 0 1rem 1rem 0;
+    background: linear-gradient(115deg, #edf3fa, #f8fafc 70%, #faf5eb);
+}
+
+.dark .equipment-sheet-hero {
+    background: linear-gradient(115deg, #0f172a, #1e293b 70%, #1c1917);
+}
+
+.equipment-sheet-hero > .fi-sc {
+    align-items: center;
+}
+
+.equipment-sheet-hero .fi-sc .fi-sc {
+    gap: 0.65rem;
+}
+
+.equipment-sheet-eyebrow.fi-in-text-item {
+    color: #64748b;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    line-height: 1.6;
+}
+
+.dark .equipment-sheet-eyebrow.fi-in-text-item {
+    color: #94a3b8;
+}
+
+.equipment-sheet-eyebrow-danger.fi-in-text-item {
+    color: #dc2626;
+}
+
+.equipment-sheet-title.fi-in-text-item {
+    color: #0a2d5f;
+    font-size: clamp(1.35rem, 2.8vw, 1.85rem);
+    font-weight: 750;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+    overflow-wrap: anywhere;
+}
+
+.dark .equipment-sheet-title.fi-in-text-item {
+    color: #f8fafc;
+}
+
+.equipment-sheet-photo .lightbox-thumb-btn {
+    border-radius: 1rem;
+}
+
+.equipment-sheet-photo .lightbox-thumb-img {
+    width: 7rem;
+    height: 7rem;
+    border: 4px solid white;
+    border-radius: 1rem;
+    box-shadow: 0 6px 20px #0a2d5f18;
+}
+
+.equipment-sheet-photo .lightbox-thumb-btn:hover .lightbox-thumb-img {
+    box-shadow: 0 10px 24px #0a2d5f2e;
+}
+
+.equipment-sheet-icon.fi-in-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 7rem;
+    height: 7rem;
+    border: 4px solid white;
+    border-radius: 50%;
+    background: #0a2d5f;
+    color: white;
+    box-shadow: 0 6px 20px #0a2d5f18;
+}
+
+.equipment-sheet-icon.fi-in-icon svg {
+    width: 3rem;
+    height: 3rem;
+    color: #ffffff;
+}
+
+.equipment-sheet-section {
+    padding: 0.5rem 1.5rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.dark .equipment-sheet-section {
+    border-bottom-color: #334155;
+}
+
+.equipment-sheet-observations {
+    padding: 0.5rem 1.5rem 1rem;
+}
+
+.equipment-sheet-incidents {
+    padding: 1rem 1.5rem 0.5rem;
+    border-top: 1px solid #fecaca;
+}
+
+.dark .equipment-sheet-incidents {
+    border-top-color: #7f1d1d;
+}
+
+.equipment-sheet-section .fi-in-text-item,
+.equipment-sheet-observations .fi-in-text-item,
+.equipment-sheet-incidents .fi-in-text-item {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+    .equipment-sheet-hero {
+        padding: 1.25rem;
+    }
+
+    .equipment-sheet-section,
+    .equipment-sheet-observations,
+    .equipment-sheet-incidents {
+        padding-inline: 0.25rem;
+    }
+}

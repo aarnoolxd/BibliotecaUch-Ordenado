@@ -8,8 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
-#[Fillable(['patrimonial_code', 'type', 'brand', 'model', 'serial_number', 'status', 'observations'])]
+#[Fillable(['patrimonial_code', 'type', 'brand', 'model', 'serial_number', 'status', 'observations', 'photo'])]
 class Equipment extends Model
 {
     use HasFactory;
@@ -50,6 +52,7 @@ class Equipment extends Model
         'serial_number',
         'status',
         'observations',
+        'photo',
     ];
 
     protected static function booted(): void
@@ -64,6 +67,28 @@ class Equipment extends Model
             }
 
             return null;
+        });
+
+        static::updated(function (Equipment $equipment): void {
+            if ($equipment->wasChanged('photo')) {
+                $previousPhoto = $equipment->getOriginal('photo');
+
+                if (is_string($previousPhoto) && trim($previousPhoto) !== '') {
+                    DB::afterCommit(static function () use ($previousPhoto): void {
+                        self::deletePhotoIfUnreferenced($previousPhoto);
+                    });
+                }
+            }
+        });
+
+        static::deleted(function (Equipment $equipment): void {
+            $photo = $equipment->photo;
+
+            if (is_string($photo) && trim($photo) !== '') {
+                DB::afterCommit(static function () use ($photo): void {
+                    self::deletePhotoIfUnreferenced($photo);
+                });
+            }
         });
     }
 
@@ -110,6 +135,37 @@ class Equipment extends Model
     public function incidents(): HasMany
     {
         return $this->hasMany(EquipmentIncident::class, 'equipment_id');
+    }
+
+    /**
+     * Devuelve el color semántico de Filament para cada estado operativo del equipo.
+     */
+    public static function statusColor(string $status): string
+    {
+        return match ($status) {
+            'Disponible' => 'success',
+            'Prestado' => 'warning',
+            'Mantenimiento' => 'danger',
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Devuelve el préstamo activo más reciente en el que participa el equipo
+     * (como equipo principal o dispositivo adicional).
+     */
+    public function activeBorrowing(): ?Borrowing
+    {
+        return $this->borrowings()
+            ->with('profile')
+            ->whereIn('status', Borrowing::ACTIVE_STATUSES)
+            ->latest('borrowing_date')
+            ->first()
+            ?? $this->additionalBorrowings()
+                ->with('profile')
+                ->whereIn('borrowings.status', Borrowing::ACTIVE_STATUSES)
+                ->latest('borrowings.borrowing_date')
+                ->first();
     }
 
     /**
@@ -202,5 +258,27 @@ class Equipment extends Model
         }
 
         return rtrim(mb_substr($text, 0, $maxLength - 3)).'...';
+    }
+
+    /**
+     * Elimina una fotografía de equipo del disco configurado solo si ningún otro
+     * equipo registrado la referencia.
+     */
+    private static function deletePhotoIfUnreferenced(string $photoPath): void
+    {
+        try {
+            $isStillReferenced = self::query()
+                ->where('photo', $photoPath)
+                ->exists();
+
+            if ($isStillReferenced) {
+                return;
+            }
+
+            $disk = (string) config('filament.default_filesystem_disk', 'local');
+            Storage::disk($disk)->delete($photoPath);
+        } catch (Throwable) {
+            // Conserva el archivo si no es posible verificar o acceder al almacenamiento.
+        }
     }
 }

@@ -15,8 +15,11 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Filament\Tables\Columns\ImageColumn;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -944,6 +947,142 @@ class EquipmentResourceTest extends TestCase
             '... | [BAJA TÉCNICA - 23/11/2026 17:30]: '.$reason,
             (string) $withLongObservations->observations,
         );
+    }
+
+    /**
+     * Un usuario con Create_Equipment puede adjuntar una fotografía opcional al registrar un equipo
+     * y esta se almacena en el directorio privado equipment/photos.
+     */
+    public function test_a_user_with_create_permission_can_create_equipment_with_optional_photo(): void
+    {
+        $disk = (string) config('filament.default_filesystem_disk', 'local');
+        Storage::fake($disk);
+        $this->signInWithPermissions('ViewAny_Equipment', 'Create_Equipment');
+
+        Livewire::test(CreateEquipment::class)
+            ->fillForm([
+                'patrimonial_code' => 'UCH-EQ-00777',
+                'type' => 'Laptop',
+                'brand' => 'Asus',
+                'model' => 'ZenBook 14',
+                'serial_number' => 'SN-ASUS-00777',
+                'photo' => UploadedFile::fake()->image('zenbook.jpg', 320, 240),
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors()
+            ->assertNotified('Equipo registrado')
+            ->assertRedirect(EquipmentResource::getUrl('index'));
+
+        $created = Equipment::query()->where('patrimonial_code', 'UCH-EQ-00777')->firstOrFail();
+
+        $this->assertNotNull($created->photo);
+        $this->assertStringStartsWith('equipment/photos/', $created->photo);
+        Storage::disk($disk)->assertExists($created->photo);
+    }
+
+    /**
+     * El formulario de equipos rechaza fotografías que superen 4 MB o que no sean JPG, PNG o WebP.
+     */
+    public function test_creating_equipment_rejects_oversized_or_unsupported_photo_files(): void
+    {
+        Storage::fake((string) config('filament.default_filesystem_disk', 'local'));
+        $this->signInWithPermissions('ViewAny_Equipment', 'Create_Equipment');
+
+        Livewire::test(CreateEquipment::class)
+            ->fillForm([
+                'patrimonial_code' => 'UCH-EQ-00778',
+                'type' => 'Computadora',
+                'brand' => 'Dell',
+                'model' => 'OptiPlex 7010',
+                'serial_number' => 'SN-DELL-00778',
+                'photo' => UploadedFile::fake()->image('pesada.jpg')->size(4097),
+            ])
+            ->call('create')
+            ->assertHasFormErrors([
+                'photo' => 'La imagen no puede superar los 4 MB.',
+            ])
+            ->assertNotNotified();
+
+        Livewire::test(CreateEquipment::class)
+            ->fillForm([
+                'patrimonial_code' => 'UCH-EQ-00779',
+                'type' => 'Computadora',
+                'brand' => 'Dell',
+                'model' => 'OptiPlex 7010',
+                'serial_number' => 'SN-DELL-00779',
+                'photo' => UploadedFile::fake()->image('animada.gif'),
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['photo'])
+            ->assertNotNotified();
+
+        $this->assertDatabaseCount('equipment', 0);
+    }
+
+    /**
+     * Al reemplazar la fotografía o eliminar un equipo, el archivo anterior se elimina del disco
+     * únicamente si ningún otro equipo sigue referenciándolo.
+     */
+    public function test_replacing_or_deleting_equipment_photo_cleans_up_unreferenced_files(): void
+    {
+        $disk = (string) config('filament.default_filesystem_disk', 'local');
+        Storage::fake($disk);
+        Storage::disk($disk)->put('equipment/photos/old.jpg', 'old-bytes');
+        Storage::disk($disk)->put('equipment/photos/new.jpg', 'new-bytes');
+        Storage::disk($disk)->put('equipment/photos/shared.jpg', 'shared-bytes');
+
+        $equipment = Equipment::factory()->withPhoto('equipment/photos/old.jpg')->create();
+        $firstShared = Equipment::factory()->withPhoto('equipment/photos/shared.jpg')->create();
+        $secondShared = Equipment::factory()->withPhoto('equipment/photos/shared.jpg')->create();
+
+        $equipment->update(['photo' => 'equipment/photos/new.jpg']);
+
+        Storage::disk($disk)->assertMissing('equipment/photos/old.jpg');
+        Storage::disk($disk)->assertExists('equipment/photos/new.jpg');
+
+        $equipment->delete();
+
+        Storage::disk($disk)->assertMissing('equipment/photos/new.jpg');
+
+        $firstShared->delete();
+
+        Storage::disk($disk)->assertExists('equipment/photos/shared.jpg');
+
+        $secondShared->delete();
+
+        Storage::disk($disk)->assertMissing('equipment/photos/shared.jpg');
+    }
+
+    /**
+     * La columna Foto de la tabla permanece oculta por defecto y resuelve URLs temporales
+     * firmadas sobre el disco privado cuando se habilita.
+     */
+    public function test_equipment_table_exposes_toggleable_private_photo_column(): void
+    {
+        $disk = (string) config('filament.default_filesystem_disk', 'local');
+        Storage::fake($disk);
+        Storage::disk($disk)->put(
+            'equipment/photos/tabla.jpg',
+            UploadedFile::fake()->image('tabla.jpg', 120, 120)->getContent(),
+        );
+
+        $equipment = Equipment::factory()->withPhoto('equipment/photos/tabla.jpg')->create();
+        $this->signInWithPermissions('ViewAny_Equipment');
+
+        $component = Livewire::test(ListEquipments::class)
+            ->loadTable()
+            ->assertCanNotRenderTableColumn('photo')
+            ->toggleAllTableColumns()
+            ->assertCanRenderTableColumn('photo');
+
+        $photoColumn = $component->instance()->getTable()->getColumn('photo');
+
+        $this->assertInstanceOf(ImageColumn::class, $photoColumn);
+        $this->assertSame($disk, $photoColumn->getDiskName());
+        $this->assertSame('private', $photoColumn->getVisibility());
+        $resolvedUrl = $photoColumn->getImageUrl($equipment->photo);
+        $this->assertIsString($resolvedUrl);
+        $this->assertStringContainsString('equipment/photos/tabla.jpg?expiration=', $resolvedUrl);
     }
 
     /**
