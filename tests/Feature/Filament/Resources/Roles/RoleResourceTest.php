@@ -102,7 +102,8 @@ class RoleResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified();
+            ->assertNotified('Rol actualizado')
+            ->assertRedirect(RoleResource::getUrl('index'));
 
         $this->assertDatabaseHas('permissions', [
             'name' => 'Delete_Book',
@@ -134,7 +135,8 @@ class RoleResourceTest extends TestCase
             ->set('data.guard_name', 'api')
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified();
+            ->assertNotified('Rol actualizado')
+            ->assertRedirect(RoleResource::getUrl('index'));
 
         $this->assertDatabaseHas('roles', [
             'id' => $role->getKey(),

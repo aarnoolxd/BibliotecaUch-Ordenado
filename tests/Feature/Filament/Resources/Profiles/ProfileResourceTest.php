@@ -342,7 +342,7 @@ class ProfileResourceTest extends TestCase
             ])
             ->call('create')
             ->assertHasNoFormErrors()
-            ->assertNotified('Metadatos personales del perfil registrados exitosamente')
+            ->assertNotified('Perfil registrado')
             ->assertRedirect(ProfileResource::getUrl('index'));
 
         $createdProfile = Profile::query()->where('dni', '71234567')->firstOrFail();
@@ -388,7 +388,7 @@ class ProfileResourceTest extends TestCase
                 ])
                 ->call('create')
                 ->assertHasNoFormErrors()
-                ->assertNotified('Metadatos personales del perfil registrados exitosamente');
+                ->assertNotified('Perfil registrado');
         }
 
         $this->assertDatabaseCount('profiles', 2);
@@ -447,7 +447,7 @@ class ProfileResourceTest extends TestCase
             ])
             ->call('save')
             ->assertHasNoFormErrors()
-            ->assertNotified('Metadatos del perfil actualizados exitosamente')
+            ->assertNotified('Perfil actualizado')
             ->assertRedirect(ProfileResource::getUrl('index'));
 
         $profile->refresh();
@@ -623,7 +623,7 @@ class ProfileResourceTest extends TestCase
 
         Livewire::test(ListProfiles::class)
             ->callAction(TestAction::make(DeleteAction::class)->table($activeProfile))
-            ->assertNotified('No se puede eliminar el perfil');
+            ->assertNotified('No se puede eliminar');
 
         $this->assertFalse($activeProfile->delete());
         $this->assertModelExists($activeProfile);
