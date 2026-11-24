@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Equipment\Schemas;
 
+use App\Models\Equipment;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -23,9 +24,9 @@ class EquipmentForm
                     ->unique(ignoreRecord: true)
                     ->validationMessages([
                         'required' => 'El código patrimonial es obligatorio.',
-                        'unique'   => 'Este código patrimonial ya se encuentra registrado en el sistema.',
-                        'min'      => 'El código patrimonial debe tener al menos 3 caracteres.',
-                        'max'      => 'El código patrimonial no puede superar los 50 caracteres.',
+                        'unique' => 'Este código patrimonial ya se encuentra registrado en el sistema.',
+                        'min' => 'El código patrimonial debe tener al menos 3 caracteres.',
+                        'max' => 'El código patrimonial no puede superar los 50 caracteres.',
                     ]),
 
                 Select::make('type')
@@ -34,9 +35,9 @@ class EquipmentForm
                     ->helperText('Seleccione el tipo de recurso que ingresa al inventario.')
                     ->options([
                         'Computadora' => 'Computadora de Escritorio',
-                        'Laptop'      => 'Laptop / Portátil',
-                        'Periférico'  => 'Periférico (Mouse, Teclado, Monitor, etc.)',
-                        'Otro'        => 'Otro Recurso Tecnológico',
+                        'Laptop' => 'Laptop / Portátil',
+                        'Periférico' => 'Periférico (Mouse, Teclado, Monitor, etc.)',
+                        'Otro' => 'Otro Recurso Tecnológico',
                     ])
                     ->required()
                     ->validationMessages([
@@ -52,8 +53,8 @@ class EquipmentForm
                     ->maxLength(100)
                     ->validationMessages([
                         'required' => 'La marca del equipo es obligatoria.',
-                        'min'      => 'La marca debe tener al menos 2 caracteres.',
-                        'max'      => 'La marca no puede superar los 100 caracteres.',
+                        'min' => 'La marca debe tener al menos 2 caracteres.',
+                        'max' => 'La marca no puede superar los 100 caracteres.',
                     ]),
 
                 TextInput::make('model')
@@ -65,8 +66,8 @@ class EquipmentForm
                     ->maxLength(100)
                     ->validationMessages([
                         'required' => 'El modelo del equipo es obligatorio.',
-                        'min'      => 'El modelo debe tener al menos 2 caracteres.',
-                        'max'      => 'El modelo no puede superar los 100 caracteres.',
+                        'min' => 'El modelo debe tener al menos 2 caracteres.',
+                        'max' => 'El modelo no puede superar los 100 caracteres.',
                     ]),
 
                 TextInput::make('serial_number')
@@ -79,18 +80,18 @@ class EquipmentForm
                     ->unique(ignoreRecord: true)
                     ->validationMessages([
                         'required' => 'El número de serie es obligatorio.',
-                        'unique'   => 'Este número de serie ya está registrado en el inventario.',
-                        'min'      => 'El número de serie debe tener al menos 3 caracteres.',
-                        'max'      => 'El número de serie no puede superar los 100 caracteres.',
+                        'unique' => 'Este número de serie ya está registrado en el inventario.',
+                        'min' => 'El número de serie debe tener al menos 3 caracteres.',
+                        'max' => 'El número de serie no puede superar los 100 caracteres.',
                     ]),
 
                 Select::make('status')
                     ->label('Estado Operativo')
                     ->options([
-                        'Disponible'    => 'Disponible',
-                        'Prestado'      => 'Prestado',
+                        'Disponible' => 'Disponible',
+                        'Prestado' => 'Prestado',
                         'Mantenimiento' => 'Mantenimiento',
-                        'Baja'          => 'Baja',
+                        'Baja' => 'Baja',
                     ])
                     ->default('Disponible')
                     ->required()
@@ -102,7 +103,7 @@ class EquipmentForm
                     ->placeholder('Ingrese observaciones técnicas, estado estético o accesorios incluidos.')
                     ->helperText('Notas u observaciones opcionales sobre el estado o componentes del equipo.')
                     ->rows(3)
-                    ->maxLength(500)
+                    ->maxLength(Equipment::OBSERVATIONS_MAX_LENGTH)
                     ->columnSpanFull(),
             ]);
     }

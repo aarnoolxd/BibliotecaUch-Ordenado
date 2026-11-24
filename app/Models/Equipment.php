@@ -30,6 +30,8 @@ class Equipment extends Model
 
     public const STATUS_DISCONTINUED = 'Baja';
 
+    public const OBSERVATIONS_MAX_LENGTH = 500;
+
     public const DISCONTINUE_SUCCESS = 'discontinued';
 
     public const DISCONTINUE_ALREADY_DISCONTINUED = 'already_discontinued';
@@ -144,18 +146,61 @@ class Equipment extends Model
                 return self::DISCONTINUE_ACTIVE_BORROWING;
             }
 
-            $existingObservations = filled($lockedEquipment->observations)
-                ? trim((string) $lockedEquipment->observations).' | '
-                : '';
-
             $lockedEquipment->update([
                 'status' => self::STATUS_DISCONTINUED,
-                'observations' => $existingObservations.'[BAJA TÉCNICA - '.now()->format('d/m/Y H:i').']: '.$cleanReason,
+                'observations' => $this->formatDiscontinuedObservations(
+                    $lockedEquipment->observations,
+                    $cleanReason,
+                    now()->format('d/m/Y H:i'),
+                ),
             ]);
 
             $this->setRawAttributes($lockedEquipment->getAttributes(), sync: true);
 
             return self::DISCONTINUE_SUCCESS;
         });
+    }
+
+    /**
+     * Construye el texto de observaciones de la baja técnica garantizando que no supere
+     * el límite máximo permitido por el formulario de edición.
+     */
+    private function formatDiscontinuedObservations(?string $existingObservations, string $cleanReason, string $timestamp): string
+    {
+        $prefix = '[BAJA TÉCNICA - '.$timestamp.']: ';
+        $maxReasonLength = self::OBSERVATIONS_MAX_LENGTH - mb_strlen($prefix);
+        $decommissionNote = $prefix.self::truncateText($cleanReason, $maxReasonLength);
+
+        $trimmedExisting = trim((string) $existingObservations);
+
+        if ($trimmedExisting === '') {
+            return $decommissionNote;
+        }
+
+        $separator = ' | ';
+        $availableForExisting = self::OBSERVATIONS_MAX_LENGTH - mb_strlen($decommissionNote) - mb_strlen($separator);
+
+        if ($availableForExisting <= 3) {
+            return $decommissionNote;
+        }
+
+        return self::truncateText($trimmedExisting, $availableForExisting).$separator.$decommissionNote;
+    }
+
+    private static function truncateText(string $text, int $maxLength): string
+    {
+        if ($maxLength <= 0) {
+            return '';
+        }
+
+        if (mb_strlen($text) <= $maxLength) {
+            return $text;
+        }
+
+        if ($maxLength <= 3) {
+            return mb_substr($text, 0, $maxLength);
+        }
+
+        return rtrim(mb_substr($text, 0, $maxLength - 3)).'...';
     }
 }
