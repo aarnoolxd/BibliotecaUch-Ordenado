@@ -141,7 +141,7 @@ class EquipmentTable
                             ->placeholder('Detalle la falla irreparable, obsolescencia o motivo de retiro...')
                             ->helperText('Campo obligatorio para justificar el retiro técnico del recurso (5 a 500 caracteres).')
                             ->required()
-                            ->dehydrateStateUsing(fn (?string $state): string => trim((string) $state))
+                            ->trim()
                             ->minLength(5)
                             ->maxLength(500)
                             ->rows(3)
