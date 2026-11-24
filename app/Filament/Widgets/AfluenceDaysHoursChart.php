@@ -3,14 +3,14 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Borrowings\BorrowingResource;
+use App\Models\Borrowing;
 use App\Services\BorrowingAnalyticsService;
 use Filament\Widgets\ChartWidget;
+use Livewire\Attributes\On;
 
 class AfluenceDaysHoursChart extends ChartWidget
 {
     protected ?string $heading = 'Días y horarios con mayor afluencia';
-
-    protected ?string $description = 'Distribución de préstamos por día laboral o franja horaria (pico resaltado en naranja).';
 
     protected static ?int $sort = 5;
 
@@ -23,9 +23,34 @@ class AfluenceDaysHoursChart extends ChartWidget
 
     public ?string $filter = 'days';
 
+    public ?string $borrowingStatus = null;
+
     public static function canView(): bool
     {
         return BorrowingResource::canViewAny();
+    }
+
+    #[On(BorrowingOverviewStats::STATUS_FILTER_EVENT)]
+    public function updateBorrowingStatus(?string $status): void
+    {
+        $this->borrowingStatus = in_array($status, [
+            Borrowing::STATUS_IN_PROGRESS,
+            Borrowing::STATUS_RETURNED,
+            Borrowing::STATUS_OVERDUE,
+        ], true) ? $status : null;
+
+        $this->updateChartData();
+    }
+
+    public function getDescription(): ?string
+    {
+        $base = 'Distribución de préstamos por día laboral o franja horaria (pico resaltado en naranja).';
+
+        if ($this->borrowingStatus !== null) {
+            return "{$base} Estado seleccionado: {$this->borrowingStatus}.";
+        }
+
+        return $base;
     }
 
     /**
@@ -45,7 +70,11 @@ class AfluenceDaysHoursChart extends ChartWidget
     protected function getData(): array
     {
         $dimension = $this->filter === 'hours' ? 'hours' : 'days';
-        $result = app(BorrowingAnalyticsService::class)->getAfluenceByDaysAndHours($dimension, 'all');
+        $result = app(BorrowingAnalyticsService::class)->getAfluenceByDaysAndHours(
+            dimension: $dimension,
+            period: 'all',
+            status: $this->borrowingStatus,
+        );
 
         if ($result['empty']) {
             return [
@@ -54,7 +83,7 @@ class AfluenceDaysHoursChart extends ChartWidget
                     'data' => [0],
                     'backgroundColor' => ['#9ca3af'],
                 ]],
-                'labels' => ['Sin actividad registrada en este periodo'],
+                'labels' => ['Sin actividad registrada para el filtro seleccionado'],
             ];
         }
 

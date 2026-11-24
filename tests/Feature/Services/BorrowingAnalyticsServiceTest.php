@@ -4,7 +4,6 @@ namespace Tests\Feature\Services;
 
 use App\Models\Borrowing;
 use App\Models\Equipment;
-use App\Models\EquipmentIncident;
 use App\Models\Profile;
 use App\Services\BorrowingAnalyticsService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -15,26 +14,22 @@ class BorrowingAnalyticsServiceTest extends TestCase
     use LazilyRefreshDatabase;
 
     /**
-     * getOperationalSummary consolida préstamos en curso, préstamos vencidos,
-     * equipos en mantenimiento e incidencias totales sin incluir préstamos devueltos.
+     * getOperationalSummary consolida el total de préstamos registrados y su desglose
+     * por cada estado (En curso, Devuelto y Vencido).
      */
-    public function test_operational_summary_counts_active_borrowings_maintenance_and_incidents(): void
+    public function test_operational_summary_counts_total_and_borrowings_by_status(): void
     {
         Borrowing::factory()->count(2)->create(['status' => Borrowing::STATUS_IN_PROGRESS]);
         Borrowing::factory()->count(3)->overdue()->create();
-        $returned = Borrowing::factory()->returned()->create();
-
-        Equipment::factory()->count(2)->withStatus('Mantenimiento')->create();
-        Equipment::factory()->withStatus('Disponible')->create();
-        EquipmentIncident::factory()->count(4)->for($returned)->create();
+        Borrowing::factory()->count(4)->returned()->create();
 
         $summary = app(BorrowingAnalyticsService::class)->getOperationalSummary();
 
         $this->assertSame([
+            'total' => 9,
             'in_progress' => 2,
+            'returned' => 4,
             'overdue' => 3,
-            'in_maintenance' => 2,
-            'total_incidents' => 4,
         ], $summary);
     }
 
@@ -213,5 +208,67 @@ class BorrowingAnalyticsServiceTest extends TestCase
         $this->assertSame([1, 0, 0, 2, 0, 0], $byHours['data']);
         $this->assertSame('#ea580c', $byHours['backgroundColors'][3]);
         $this->assertSame('#0A2D5F', $byHours['backgroundColors'][0]);
+    }
+
+    /**
+     * Todos los métodos analíticos soportan filtrado opcional por estado del préstamo
+     * (En curso, Devuelto o Vencido) sin afectar el cálculo global cuando status es null.
+     */
+    public function test_analytics_methods_filter_accurately_by_borrowing_status(): void
+    {
+        $this->travelTo('2026-11-23 12:00:00');
+        $service = app(BorrowingAnalyticsService::class);
+
+        $cycleTwoStudent = Profile::factory()->create(['cycle' => 2]);
+        $cycleSixStudent = Profile::factory()->create(['cycle' => 6]);
+        $computer = Equipment::factory()->ofType('Computadora')->create([
+            'patrimonial_code' => 'UCH-PC-900',
+            'brand' => 'HP',
+            'model' => 'EliteDesk',
+        ]);
+        $mouse = Equipment::factory()->ofType('Periférico')->create([
+            'patrimonial_code' => 'UCH-PER-900',
+            'brand' => 'Logitech',
+            'model' => 'G203',
+        ]);
+
+        // Lunes 09:30 -> En curso (Ciclo II, Computadora)
+        Borrowing::factory()
+            ->for($computer)
+            ->for($cycleTwoStudent)
+            ->create([
+                'status' => Borrowing::STATUS_IN_PROGRESS,
+                'borrowing_date' => '2026-11-23 09:30:00',
+            ]);
+
+        // Miércoles 15:15 -> Vencido (Ciclo VI, solo Periférico)
+        Borrowing::factory()
+            ->withoutPrimaryEquipment()
+            ->withAdditionalEquipment($mouse)
+            ->for($cycleSixStudent)
+            ->overdue()
+            ->create([
+                'borrowing_date' => '2026-11-25 15:15:00',
+            ]);
+
+        $overdueResources = $service->getMostRequestedResources('all', 5, Borrowing::STATUS_OVERDUE);
+        $this->assertSame(['[UCH-PER-900] Logitech G203'], $overdueResources['labels']);
+        $this->assertSame([1], $overdueResources['data']);
+
+        $overdueCycles = $service->getAfluenceByCycle('all', Borrowing::STATUS_OVERDUE);
+        $this->assertSame(6, $overdueCycles['max_cycle']);
+        $this->assertSame(0, $overdueCycles['data'][1]);
+        $this->assertSame(1, $overdueCycles['data'][5]);
+
+        $inProgressDays = $service->getAfluenceByDaysAndHours('days', 'all', Borrowing::STATUS_IN_PROGRESS);
+        $this->assertSame([1, 0, 0, 0, 0, 0], $inProgressDays['data']);
+
+        $overdueHours = $service->getAfluenceByDaysAndHours('hours', 'all', Borrowing::STATUS_OVERDUE);
+        $this->assertSame([0, 0, 0, 1, 0, 0], $overdueHours['data']);
+
+        // Estado sin coincidencias (Devuelto) devuelve empty = true
+        $this->assertTrue($service->getMostRequestedResources('all', 5, Borrowing::STATUS_RETURNED)['empty']);
+        $this->assertTrue($service->getAfluenceByCycle('all', Borrowing::STATUS_RETURNED)['empty']);
+        $this->assertTrue($service->getAfluenceByDaysAndHours('days', 'all', Borrowing::STATUS_RETURNED)['empty']);
     }
 }
